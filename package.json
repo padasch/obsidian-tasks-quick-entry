@@ -1,0 +1,25 @@
+{
+  "name": "tasks-quick-entry",
+  "version": "0.1.0",
+  "description": "Fast task capture for Obsidian Tasks.",
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mts",
+    "check": "tsc --noEmit",
+    "package": "node scripts/package-plugin.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "tasks"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.1",
+    "obsidian": "^1.8.7",
+    "typescript": "^5.8.0"
+  }
+}
