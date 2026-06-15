@@ -112,8 +112,11 @@ test("formats multiple task dates", () => {
 
 test("supports short date aliases", () => {
   assert.equal(parseTaskInput("Do it tod", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it td", { referenceDate }).dates.due, "2026-06-15");
   assert.equal(parseTaskInput("Do it tmr", { referenceDate }).dates.due, "2026-06-16");
   assert.equal(parseTaskInput("Do it tom", { referenceDate }).dates.due, "2026-06-16");
+  assert.equal(parseTaskInput("Do it tm", { referenceDate }).dates.due, "2026-06-16");
+  assert.equal(parseTaskInput("Do it yd", { referenceDate }).dates.due, "2026-06-14");
   assert.equal(parseTaskInput("Do it nw", { referenceDate }).dates.due, "2026-06-22");
   assert.equal(parseTaskInput("Do it weekend", { referenceDate }).dates.due, "2026-06-20");
 });
@@ -121,6 +124,65 @@ test("supports short date aliases", () => {
 test("differentiates this weekday from next weekday", () => {
   assert.equal(parseTaskInput("Do it this Friday", { referenceDate }).dates.due, "2026-06-19");
   assert.equal(parseTaskInput("Do it next Friday", { referenceDate }).dates.due, "2026-06-26");
+  assert.equal(parseTaskInput("Do it Monday", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it Mon", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it Tue", { referenceDate }).dates.due, "2026-06-16");
+  assert.equal(parseTaskInput("Do it next Monday", { referenceDate }).dates.due, "2026-06-22");
+});
+
+test("supports relative day, week, month, and year dates", () => {
+  assert.equal(parseTaskInput("Do it in 1 day", { referenceDate }).dates.due, "2026-06-16");
+  assert.equal(parseTaskInput("Do it 2 weeks", { referenceDate }).dates.due, "2026-06-29");
+  assert.equal(parseTaskInput("Do it 2 weeks from now", { referenceDate }).dates.due, "2026-06-29");
+  assert.equal(parseTaskInput("Do it 2 weeks later", { referenceDate }).dates.due, "2026-06-29");
+  assert.equal(parseTaskInput("Do it within 2 weeks", { referenceDate }).dates.due, "2026-06-29");
+  assert.equal(parseTaskInput("Do it in a week", { referenceDate }).dates.due, "2026-06-22");
+  assert.equal(parseTaskInput("Do it in a month", { referenceDate }).dates.due, "2026-07-15");
+  assert.equal(parseTaskInput("Do it 2 days ago", { referenceDate }).dates.due, "2026-06-13");
+  assert.equal(parseTaskInput("Do it a month ago", { referenceDate }).dates.due, "2026-05-15");
+  assert.equal(parseTaskInput("Do it in three months", { referenceDate }).dates.due, "2026-09-15");
+  assert.equal(parseTaskInput("Do it in one year", { referenceDate }).dates.due, "2027-06-15");
+  assert.equal(parseTaskInput("Do it next month", { referenceDate }).dates.due, "2026-07-01");
+  assert.equal(parseTaskInput("Do it next year", { referenceDate }).dates.due, "2027-01-01");
+});
+
+test("supports month-name dates", () => {
+  assert.equal(parseTaskInput("Do it June 20", { referenceDate }).dates.due, "2026-06-20");
+  assert.equal(parseTaskInput("Do it 20 June", { referenceDate }).dates.due, "2026-06-20");
+  assert.equal(parseTaskInput("Do it Jun 20", { referenceDate }).dates.due, "2026-06-20");
+  assert.equal(parseTaskInput("Do it September 3 2026", { referenceDate }).dates.due, "2026-09-03");
+  assert.equal(parseTaskInput("Do it May 5", { referenceDate }).dates.due, "2027-05-05");
+});
+
+test("supports period boundary dates", () => {
+  assert.equal(parseTaskInput("Do it end of week", { referenceDate }).dates.due, "2026-06-21");
+  assert.equal(parseTaskInput("Do it end of month", { referenceDate }).dates.due, "2026-06-30");
+  assert.equal(parseTaskInput("Do it start of next month", { referenceDate }).dates.due, "2026-07-01");
+  assert.equal(parseTaskInput("Do it end of next month", { referenceDate }).dates.due, "2026-07-31");
+  assert.equal(parseTaskInput("Do it last day of next month", { referenceDate }).dates.due, "2026-07-31");
+  assert.equal(parseTaskInput("Do it last day of June", { referenceDate }).dates.due, "2026-06-30");
+  assert.equal(parseTaskInput("Do it mid July", { referenceDate }).dates.due, "2026-07-15");
+});
+
+test("supports casual day and time-of-day words as date-only inputs", () => {
+  assert.equal(parseTaskInput("Do it yesterday", { referenceDate }).dates.due, "2026-06-14");
+  assert.equal(parseTaskInput("Do it tonight", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it at noon", { referenceDate }).dates.due, "2026-06-15");
+
+  const tomorrowEvening = parseTaskInput("Do it tomorrow evening", { referenceDate });
+  assert.equal(tomorrowEvening.dates.due, "2026-06-16");
+  assert.equal(tomorrowEvening.title, "Do it");
+
+  const noonTomorrow = parseTaskInput("Do it at noon tomorrow", { referenceDate });
+  assert.equal(noonTomorrow.dates.due, "2026-06-16");
+  assert.equal(noonTomorrow.title, "Do it");
+});
+
+test("supports ordinal dates", () => {
+  assert.equal(parseTaskInput("Do it on the 15th", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it 15th", { referenceDate }).dates.due, "2026-06-15");
+  assert.equal(parseTaskInput("Do it first of July", { referenceDate }).dates.due, "2026-07-01");
+  assert.equal(parseTaskInput("Do it second of next month", { referenceDate }).dates.due, "2026-07-02");
 });
 
 test("supports tag and priority placement options", () => {

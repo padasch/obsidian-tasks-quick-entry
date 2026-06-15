@@ -12,13 +12,33 @@ while still showing how the input will be interpreted before the task is written
 > Keep regular backups of your vault, and make a backup before installing or using this
 > plugin on important notes.
 
+## Quick Example
+
+Type:
+
+```text
+Review draft [[Project Note]] tom prio high #writing
+```
+
+Tasks Quick Entry can write:
+
+```text
+- [ ] ⏫ Review draft #writing 📅 2026-06-16
+```
+
+If routed to `Project Note`, the `[[Project Note]]` link is removed from the task text.
+
 ## Features
 
 - Open a single-line task entry modal from the command palette or ribbon icon.
 - Preview the parsed task text, detected metadata, and final Markdown while typing.
-- Parse dates such as `today`, `tomorrow`, `next Friday`, `in 2 weeks`, `YYYY-MM-DD`,
-  and `DD.MM.YYYY`.
-- Parse short date aliases: `tod`, `tom`, `tmr`, `nw`, and `weekend`.
+- Parse dates such as `today`, `tomorrow`, `yesterday`, `tonight`, `at noon`,
+  `Monday`, `Mon`, `next Friday`, `in 2 weeks`, `2 weeks from now`,
+  `within 2 weeks`, `2 days ago`, `three months`, `next month`, `end of month`,
+  `last day of next month`, `mid July`, `June 20`, `first of July`, `15th`,
+  `YYYY-MM-DD`, and `DD.MM.YYYY`.
+- Parse short date aliases: `tod`, `td`, `tom`, `tm`, `tmr`, `yd`, `nw`, and
+  `weekend`.
 - Distinguish `this Friday` from `next Friday`.
 - Parse priority with `prio highest`, `prio high`, `prio medium`, `prio normal`,
   `prio low`, and `prio lowest`.
@@ -124,20 +144,6 @@ Task line order:
 - The final Markdown order is configurable with tokens.
 - Supported tokens are `priority`, `text`, `notes`, `tags`, `recurrence`, and `dates`.
 - Aliases such as `prio`, `tag`, `note`, and `date` are accepted in settings.
-
-Example:
-
-```text
-Review draft [[Project Note]] tom prio high #writing
-```
-
-Can become:
-
-```text
-- [ ] ⏫ Review draft #writing 📅 2026-06-16
-```
-
-If routed to `Project Note`, the `[[Project Note]]` link is removed from the task text.
 
 ## Mobile Shortcuts
 

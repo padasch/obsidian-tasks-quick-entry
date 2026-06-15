@@ -6,6 +6,7 @@ import {
   type ParsedTaskInput,
   type ParseTaskInputOptions,
 } from "../parser/parseTaskInput.ts";
+import { extractDate } from "../parser/dateParser.ts";
 import {
   PRIORITY_LEVELS,
   priorityFromLevel,
@@ -16,14 +17,14 @@ import { DATE_TYPES, type DateType } from "../settings.ts";
 import type { TaskWriteTarget } from "../writer/taskWriter.ts";
 
 interface CompletionTrigger {
-  kind: "tag" | "note" | "priority";
+  kind: "tag" | "note" | "priority" | "date";
   start: number;
   end: number;
   query: string;
 }
 
 interface CompletionSuggestion {
-  kind: "tag" | "note" | "priority";
+  kind: "tag" | "note" | "priority" | "date";
   label: string;
   detail: string;
   insertText: string;
@@ -53,6 +54,45 @@ const DATE_PLACEHOLDERS: Record<DateType, string> = {
   due: "yyyy-mm-dd",
   scheduled: "yyyy-mm-dd",
   start: "yyyy-mm-dd",
+};
+
+const WEEKDAY_COMPLETIONS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const DATE_COMPLETION_PHRASES = [
+  "today",
+  "tomorrow",
+  "yesterday",
+  "tonight",
+  "at noon",
+  "weekend",
+  "next week",
+  "next month",
+  "next year",
+  "end of week",
+  "end of month",
+  "start of next month",
+  "end of next month",
+  "last day of month",
+  "mid month",
+  ...WEEKDAY_COMPLETIONS,
+];
+
+const DATE_ALIAS_COMPLETIONS: Record<string, string> = {
+  td: "today",
+  tod: "today",
+  tm: "tomorrow",
+  tom: "tomorrow",
+  tmr: "tomorrow",
+  yd: "yesterday",
+  nw: "next week",
 };
 
 const RECURRENCE_PLACEHOLDER = "every week on Monday";
@@ -743,11 +783,7 @@ export class QuickAddModal extends Modal {
       return;
     }
 
-    this.suggestions = trigger.kind === "tag"
-      ? this.getTagSuggestions(trigger.query)
-      : trigger.kind === "priority"
-        ? this.getPrioritySuggestions(trigger.query)
-        : this.getNoteSuggestions(trigger.query);
+    this.suggestions = this.getSuggestionsForTrigger(trigger);
     this.selectedSuggestionIndex = 0;
 
     if (this.suggestions.length === 0) {
@@ -782,6 +818,11 @@ export class QuickAddModal extends Modal {
       };
     }
 
+    const dateTrigger = this.findDateCompletionTrigger(beforeCursor, cursor);
+    if (dateTrigger !== null) {
+      return dateTrigger;
+    }
+
     const tagMatch = beforeCursor.match(/(^|\s)#([^\s#\[\]]*)$/);
     if (tagMatch !== null) {
       return {
@@ -795,6 +836,45 @@ export class QuickAddModal extends Modal {
     return null;
   }
 
+  private findDateCompletionTrigger(beforeCursor: string, cursor: number): CompletionTrigger | null {
+    const phraseMatch = beforeCursor.match(/(^|\s)([a-z0-9]+(?:\s+[a-z0-9]+){0,3})$/i);
+    if (phraseMatch === null) {
+      return null;
+    }
+
+    const words = phraseMatch[2].trim().split(/\s+/);
+    for (let wordCount = Math.min(words.length, 4); wordCount > 0; wordCount -= 1) {
+      const query = words.slice(-wordCount).join(" ").toLowerCase();
+      if (query.length < 2) {
+        continue;
+      }
+
+      if (this.getDateSuggestions(query).length > 0) {
+        return {
+          kind: "date",
+          start: cursor - query.length,
+          end: cursor,
+          query,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private getSuggestionsForTrigger(trigger: CompletionTrigger): CompletionSuggestion[] {
+    switch (trigger.kind) {
+      case "tag":
+        return this.getTagSuggestions(trigger.query);
+      case "priority":
+        return this.getPrioritySuggestions(trigger.query);
+      case "date":
+        return this.getDateSuggestions(trigger.query);
+      case "note":
+        return this.getNoteSuggestions(trigger.query);
+    }
+  }
+
   private getPrioritySuggestions(query: string): CompletionSuggestion[] {
     return PRIORITY_LEVELS
       .map((level) => priorityFromLevel(level))
@@ -805,6 +885,21 @@ export class QuickAddModal extends Modal {
         detail: "Priority",
         insertText: `prio ${priority.level} `,
       }));
+  }
+
+  private getDateSuggestions(query: string): CompletionSuggestion[] {
+    return getDateCompletionPhrases(query)
+      .map((phrase) => ({
+        kind: "date",
+        label: phrase,
+        detail: this.getDateSuggestionDetail(phrase),
+        insertText: `${phrase} `,
+      }));
+  }
+
+  private getDateSuggestionDetail(phrase: string): string {
+    const parsed = extractDate(phrase, this.parseOptions.referenceDate);
+    return parsed === null ? "Date" : parsed.date;
   }
 
   private getTagSuggestions(query: string): CompletionSuggestion[] {
@@ -965,6 +1060,49 @@ function formatSuggestionShortcut(index: number, _query: string): string {
   return Platform.isMacOS ? `⌘${number}` : `Ctrl+${number}`;
 }
 
+function getDateCompletionPhrases(query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  const relativePhrases = getRelativeDateCompletionPhrases(normalized);
+  const aliasPhrases = DATE_ALIAS_COMPLETIONS[normalized] === undefined ? [] : [DATE_ALIAS_COMPLETIONS[normalized]];
+  const staticPhrases = normalized.length < 3
+    ? []
+    : DATE_COMPLETION_PHRASES.filter((phrase) => phrase.toLowerCase().startsWith(normalized));
+  const allPhrases = [...relativePhrases, ...aliasPhrases, ...staticPhrases];
+  return Array.from(new Set(allPhrases)).slice(0, 8);
+}
+
+function getRelativeDateCompletionPhrases(query: string): string[] {
+  const prefixedMatch = query.match(/^(in|within)\s+([a-z0-9]+)(?:\s+([a-z]*))?$/i);
+  if (prefixedMatch !== null) {
+    const prefix = prefixedMatch[1].toLowerCase();
+    const amount = prefixedMatch[2].toLowerCase();
+    const unitPrefix = (prefixedMatch[3] ?? "").toLowerCase();
+    return getRelativeUnits(unitPrefix)
+      .map((unit) => `${prefix} ${amount} ${unit}`)
+      .filter((phrase) => phrase.startsWith(query));
+  }
+
+  const bareMatch = query.match(/^([0-9]+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s+([a-z]*))?$/i);
+  if (bareMatch === null) {
+    return [];
+  }
+
+  const amount = bareMatch[1].toLowerCase();
+  const unitPrefix = (bareMatch[2] ?? "").toLowerCase();
+  return getRelativeUnits(unitPrefix)
+    .flatMap((unit) => [
+      `${amount} ${unit}`,
+      `${amount} ${unit} from now`,
+      `${amount} ${unit} later`,
+      `${amount} ${unit} ago`,
+    ])
+    .filter((phrase) => phrase.startsWith(query));
+}
+
+function getRelativeUnits(query: string): string[] {
+  return ["days", "weeks", "months", "years"].filter((unit) => unit.startsWith(query));
+}
+
 function formatDetectedDateText(dateText: string | undefined, date: string): string {
   if (!dateText) {
     return date;
@@ -977,15 +1115,36 @@ function humanizeDateText(dateText: string): string {
   const normalized = dateText.trim().toLowerCase();
   const aliases: Record<string, string> = {
     tod: "Today",
+    td: "Today",
     today: "Today",
     tmr: "Tomorrow",
     tom: "Tomorrow",
+    tm: "Tomorrow",
     tomorrow: "Tomorrow",
+    yd: "Yesterday",
+    yesterday: "Yesterday",
     nw: "Next Week",
     "next week": "Next Week",
     weekend: "Weekend",
     manual: "Manual",
     "inferred from recurrence": "Inferred from recurrence",
+    sun: "Sunday",
+    sunday: "Sunday",
+    mon: "Monday",
+    monday: "Monday",
+    tue: "Tuesday",
+    tues: "Tuesday",
+    tuesday: "Tuesday",
+    wed: "Wednesday",
+    wednesday: "Wednesday",
+    thu: "Thursday",
+    thur: "Thursday",
+    thurs: "Thursday",
+    thursday: "Thursday",
+    fri: "Friday",
+    friday: "Friday",
+    sat: "Saturday",
+    saturday: "Saturday",
   };
 
   return aliases[normalized] ?? dateText.replace(/\b\w/g, (letter) => letter.toUpperCase());
