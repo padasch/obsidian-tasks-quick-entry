@@ -8,6 +8,7 @@ export interface TaskWriteTarget {
   insertPosition: TaskInsertPosition;
   insertTarget: TaskInsertTarget;
   insertHeading?: string;
+  createInboxFile?: boolean;
 }
 
 export async function appendTaskToInbox(
@@ -49,7 +50,7 @@ function getTargetSettings(settings: QuickAddTasksSettings, target?: TaskWriteTa
     insertPosition: target.insertPosition,
     insertTarget: target.insertTarget,
     insertHeading: target.insertHeading ?? settings.insertHeading,
-    createInboxFile: false,
+    createInboxFile: target.createInboxFile ?? false,
   };
 }
 

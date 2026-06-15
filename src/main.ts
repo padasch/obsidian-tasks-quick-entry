@@ -55,14 +55,14 @@ export default class TasksQuickAddPlugin extends Plugin {
       },
       preset?.name ?? "New task",
       async (draft, target) => {
-        await this.addParsedTask(draft, target);
+        await this.addParsedTask(draft, target ?? this.getPresetWriteTarget(preset));
       },
     ).open();
   }
 
   async addTaskFromInput(input: string, preset: QuickAddCommandPreset | null = null): Promise<void> {
     const parsed = parseTaskInput(input, this.getParseOptions(preset));
-    await this.addParsedTask(parsed);
+    await this.addParsedTask(parsed, this.getPresetWriteTarget(preset));
   }
 
   async addParsedTask(parsed: ParsedTaskInput, target?: TaskWriteTarget | null): Promise<void> {
@@ -122,6 +122,31 @@ export default class TasksQuickAddPlugin extends Plugin {
       removeParsedDateText: this.settings.removeParsedDateText,
       defaultTags,
       ...presetDateOptions,
+    };
+  }
+
+  private getPresetWriteTarget(preset: QuickAddCommandPreset | null): TaskWriteTarget | null {
+    if (preset === null) {
+      return null;
+    }
+
+    const hasTargetOverride = Boolean(
+      preset.inboxPath
+      || preset.insertPosition
+      || preset.insertTarget
+      || preset.insertHeading,
+    );
+    if (!hasTargetOverride) {
+      return null;
+    }
+
+    const presetHeading = preset.insertHeading?.trim();
+    return {
+      filePath: preset.inboxPath?.trim() || this.settings.inboxPath,
+      insertPosition: preset.insertPosition ?? this.settings.insertPosition,
+      insertTarget: preset.insertTarget ?? (presetHeading ? "heading" : this.settings.insertTarget),
+      insertHeading: presetHeading || this.settings.insertHeading,
+      createInboxFile: this.settings.createInboxFile,
     };
   }
 

@@ -37,6 +37,17 @@ while still showing how the input will be interpreted before the task is written
 - Use collapsed editing controls for priority, recurrence, due date, scheduled date,
   and start date.
 
+### Global Task Capture
+
+Tasks Quick Entry pairs well with a global hotkey plugin for Obsidian. A global hotkey
+can be bound to the `Tasks Quick Entry: New task` command, letting you bring up the
+task entry field from anywhere on your system and quickly capture a task into your
+vault.
+
+This is especially useful with command presets: for example, one global shortcut can
+open a general inbox capture command, while another can open a shopping or research
+capture command with preset tags, dates, and target locations.
+
 ## Command Presets
 
 Command presets add extra Obsidian command palette entries for common capture flows.
@@ -46,11 +57,22 @@ Each preset can define:
 - Automatic date: none, today, tomorrow, next week, or weekend
 - Date type: due, scheduled, or start
 - Preset tags, such as `#task/shopping`
+- Optional task file
+- Optional insert position: first line or last line
+- Optional insert target: whole file or heading
+- Optional heading name
 
 The plugin starts with two editable examples:
 
 - `Add task for today`: adds a due date for today
 - `Add task to shopping`: adds `#task/shopping`
+
+Preset task targets are useful when different capture commands should write to
+different notes. For example, a shopping preset can write to `Lists/Shopping.md`, while
+a research preset can write under a `## Capture` heading in a project note.
+
+If the task input contains a detected file link and the linked-file routing toggle is
+enabled, that detected file target takes priority over the command preset target.
 
 ## Tasks Output
 

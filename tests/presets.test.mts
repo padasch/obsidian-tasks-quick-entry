@@ -31,3 +31,32 @@ test("keeps empty custom command preset arrays empty", () => {
 
   assert.deepEqual(settings.commandPresets, []);
 });
+
+test("normalizes command preset task targets", () => {
+  const settings = normalizeSettings({
+    commandPresets: [
+      {
+        name: "Research capture",
+        dateMode: "none",
+        dateType: "due",
+        defaultTags: "#research",
+        inboxPath: " Research/Tasks.md ",
+        insertPosition: "first-line",
+        insertTarget: "heading",
+        insertHeading: " Capture ",
+      },
+    ],
+  });
+
+  assert.deepEqual(settings.commandPresets[0], {
+    id: "research-capture",
+    name: "Research capture",
+    dateMode: "none",
+    dateType: "due",
+    defaultTags: "#research",
+    inboxPath: "Research/Tasks.md",
+    insertPosition: "first-line",
+    insertTarget: "heading",
+    insertHeading: "Capture",
+  });
+});

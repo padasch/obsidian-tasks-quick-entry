@@ -178,7 +178,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Command presets" });
     containerEl.createEl("p", {
       cls: "setting-item-description",
-      text: "Each preset adds another command palette command with optional automatic date and tags.",
+      text: "Each preset adds another command palette command with optional automatic date, tags, and task target.",
     });
 
     for (const [index, preset] of this.plugin.settings.commandPresets.entries()) {
@@ -260,6 +260,65 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
         .setValue(preset.defaultTags)
         .onChange(async (value) => {
           preset.defaultTags = value.trim();
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(presetEl)
+      .setName("Preset task file")
+      .setDesc("Optional markdown file for this command. Leave empty to use the global task file.")
+      .addText((text) => text
+        .setPlaceholder(this.plugin.settings.inboxPath || DEFAULT_SETTINGS.inboxPath)
+        .setValue(preset.inboxPath ?? "")
+        .onChange(async (value) => {
+          preset.inboxPath = value.trim() || undefined;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(presetEl)
+      .setName("Preset insert position")
+      .setDesc("Optional insertion position for this command.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "use global");
+        dropdown.addOption("first-line", "first line");
+        dropdown.addOption("last-line", "last line");
+
+        dropdown
+          .setValue(preset.insertPosition ?? "")
+          .onChange(async (value) => {
+            preset.insertPosition = TASK_INSERT_POSITIONS.includes(value as TaskInsertPosition)
+              ? value as TaskInsertPosition
+              : undefined;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(presetEl)
+      .setName("Preset insert target")
+      .setDesc("Optional target mode for this command.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "use global");
+        dropdown.addOption("file", "file");
+        dropdown.addOption("heading", "heading");
+
+        dropdown
+          .setValue(preset.insertTarget ?? "")
+          .onChange(async (value) => {
+            preset.insertTarget = TASK_INSERT_TARGETS.includes(value as TaskInsertTarget)
+              ? value as TaskInsertTarget
+              : undefined;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    new Setting(presetEl)
+      .setName("Preset heading")
+      .setDesc("Optional heading for this command. Entering a heading makes this preset insert under that heading unless a target file is detected in the task input.")
+      .addText((text) => text
+        .setPlaceholder(this.plugin.settings.insertHeading || DEFAULT_SETTINGS.insertHeading)
+        .setValue(preset.insertHeading ?? "")
+        .onChange(async (value) => {
+          preset.insertHeading = value.trim() || undefined;
           await this.plugin.saveSettings();
         }));
 

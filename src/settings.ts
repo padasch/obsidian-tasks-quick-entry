@@ -16,6 +16,10 @@ export interface QuickAddCommandPreset {
   dateMode: CommandPresetDateMode;
   dateType: DateType;
   defaultTags: string;
+  inboxPath?: string;
+  insertPosition?: TaskInsertPosition;
+  insertTarget?: TaskInsertTarget;
+  insertHeading?: string;
 }
 
 export interface QuickAddTasksSettings {
@@ -127,6 +131,10 @@ export function createCommandPreset(overrides: Partial<QuickAddCommandPreset> = 
     dateMode: overrides.dateMode ?? "none",
     dateType: overrides.dateType ?? "due",
     defaultTags: overrides.defaultTags ?? "",
+    inboxPath: normalizeOptionalText(overrides.inboxPath),
+    insertPosition: isTaskInsertPosition(overrides.insertPosition) ? overrides.insertPosition : undefined,
+    insertTarget: isTaskInsertTarget(overrides.insertTarget) ? overrides.insertTarget : undefined,
+    insertHeading: normalizeOptionalText(overrides.insertHeading),
   };
 }
 
@@ -176,7 +184,15 @@ function normalizeCommandPreset(
     dateMode: isCommandPresetDateMode(incoming.dateMode) ? incoming.dateMode : "none",
     dateType: isDateType(incoming.dateType) ? incoming.dateType : "due",
     defaultTags: typeof incoming.defaultTags === "string" ? incoming.defaultTags.trim() : "",
+    inboxPath: normalizeOptionalText(incoming.inboxPath),
+    insertPosition: isTaskInsertPosition(incoming.insertPosition) ? incoming.insertPosition : undefined,
+    insertTarget: isTaskInsertTarget(incoming.insertTarget) ? incoming.insertTarget : undefined,
+    insertHeading: normalizeOptionalText(incoming.insertHeading),
   };
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function uniquePresetId(value: string, index: number, usedIds: Set<string>): string {
