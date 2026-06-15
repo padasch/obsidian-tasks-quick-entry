@@ -103,12 +103,17 @@ Tag handling:
 
 - Existing tags can be typed directly, for example `#work`.
 - Default tags can be configured globally or per command preset.
+- Settings fields for default and preset tags use fuzzy suggestions from existing vault
+  tags.
 - Duplicate tags are collapsed to the first occurrence and shown as a warning.
 
 File and note handling:
 
 - Wiki links such as `[[Project Note]]` are detected as file references.
 - Detected files can be used as the task target instead of the default task file.
+- Settings fields for task target files use fuzzy suggestions from existing notes.
+- Heading settings suggest headings from the selected target note and show whether the
+  entered heading already exists.
 - When routing to a detected file, the matching note link is removed from the written
   task text.
 - Duplicate file references are collapsed to the first occurrence and shown as a

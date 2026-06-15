@@ -336,6 +336,24 @@
   font-size: var(--font-ui-medium);
 }
 
+.tasks-quick-add-settings-heading-status {
+  margin-top: 4px;
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+.tasks-quick-add-settings-heading-status.is-muted {
+  color: var(--text-muted);
+}
+
+.tasks-quick-add-settings-heading-status.is-success {
+  color: var(--text-success);
+}
+
+.tasks-quick-add-settings-heading-status.is-warning {
+  color: var(--text-warning);
+}
+
 .tasks-quick-add-settings-command-preset {
   margin: 12px 0;
   border: 1px solid var(--background-modifier-border);
