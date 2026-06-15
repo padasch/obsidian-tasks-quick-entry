@@ -33,7 +33,7 @@ while still showing how the input will be interpreted before the task is written
 - Remove the target note link from the task text when the task is routed into that
   same note.
 - Configure the default task file, insertion location, default date type, default
-  tags, tag placement, and priority placement.
+  tags, and final task line order.
 - Use collapsed editing controls for priority, recurrence, due date, scheduled date,
   and start date.
 
