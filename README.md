@@ -103,7 +103,6 @@ Tag handling:
 
 - Existing tags can be typed directly, for example `#work`.
 - Default tags can be configured globally or per command preset.
-- Tag placement can be configured as first, where entered, or last.
 - Duplicate tags are collapsed to the first occurrence and shown as a warning.
 
 File and note handling:
@@ -114,6 +113,12 @@ File and note handling:
   task text.
 - Duplicate file references are collapsed to the first occurrence and shown as a
   warning.
+
+Task line order:
+
+- The final Markdown order is configurable with tokens.
+- Supported tokens are `priority`, `text`, `notes`, `tags`, `recurrence`, and `dates`.
+- Aliases such as `prio`, `tag`, `note`, and `date` are accepted in settings.
 
 Example:
 

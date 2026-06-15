@@ -4,12 +4,13 @@ import {
   COMMAND_PRESET_DATE_MODES,
   DATE_TYPES,
   DEFAULT_SETTINGS,
-  METADATA_PLACEMENTS,
   TASK_INSERT_POSITIONS,
   TASK_INSERT_TARGETS,
+  TASK_LINE_TOKENS,
   createCommandPreset,
+  formatTaskTokenOrder,
+  normalizeTaskTokenOrder,
   type CommandPresetDateMode,
-  type MetadataPlacement,
   type QuickAddCommandPreset,
   type TaskInsertPosition,
   type TaskInsertTarget,
@@ -28,7 +29,9 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl)
+    const savingEl = this.createSettingsGroup(containerEl, "Saving a task");
+
+    new Setting(savingEl)
       .setName("Task file path")
       .setDesc("The markdown file where new tasks are written.")
       .addText((text) => text
@@ -39,35 +42,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    new Setting(containerEl)
-      .setName("Default date type")
-      .setDesc("Which Tasks date marker to use when natural-language input contains a date.")
-      .addDropdown((dropdown) => {
-        for (const dateType of DATE_TYPES) {
-          dropdown.addOption(dateType, dateType);
-        }
-
-        dropdown
-          .setValue(this.plugin.settings.defaultDateType)
-          .onChange(async (value) => {
-            if (DATE_TYPES.includes(value as typeof DATE_TYPES[number])) {
-              this.plugin.settings.defaultDateType = value as typeof DATE_TYPES[number];
-              await this.plugin.saveSettings();
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Remove parsed date text")
-      .setDesc("Remove phrases like tomorrow or next Friday from the visible task title.")
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.removeParsedDateText)
-        .onChange(async (value) => {
-          this.plugin.settings.removeParsedDateText = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
+    new Setting(savingEl)
       .setName("Create task file if missing")
       .setDesc("Create the task note and parent folders when they do not exist.")
       .addToggle((toggle) => toggle
@@ -77,24 +52,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    new Setting(containerEl)
-      .setName("Task insert position")
-      .setDesc("Whether new tasks are inserted at the first or last line of the selected target.")
-      .addDropdown((dropdown) => {
-        dropdown.addOption("first-line", "first line");
-        dropdown.addOption("last-line", "last line");
-
-        dropdown
-          .setValue(this.plugin.settings.insertPosition)
-          .onChange(async (value) => {
-            if (TASK_INSERT_POSITIONS.includes(value as TaskInsertPosition)) {
-              this.plugin.settings.insertPosition = value as TaskInsertPosition;
-              await this.plugin.saveSettings();
-            }
-          });
-      });
-
-    new Setting(containerEl)
+    new Setting(savingEl)
       .setName("Task insert target")
       .setDesc("Insert into the whole file, or under a heading inside the file.")
       .addDropdown((dropdown) => {
@@ -112,8 +70,25 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(savingEl)
+      .setName("Task insert position")
+      .setDesc("Whether new tasks are inserted at the first or last line of the selected target.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("first-line", "first line");
+        dropdown.addOption("last-line", "last line");
+
+        dropdown
+          .setValue(this.plugin.settings.insertPosition)
+          .onChange(async (value) => {
+            if (TASK_INSERT_POSITIONS.includes(value as TaskInsertPosition)) {
+              this.plugin.settings.insertPosition = value as TaskInsertPosition;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
+
     if (this.plugin.settings.insertTarget === "heading") {
-      new Setting(containerEl)
+      new Setting(savingEl)
         .setName("Task heading")
         .setDesc("Heading under which tasks are inserted. Created at the top if missing.")
         .addText((text) => text
@@ -125,7 +100,27 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           }));
     }
 
-    new Setting(containerEl)
+    const defaultsEl = this.createSettingsGroup(containerEl, "Defaults");
+
+    new Setting(defaultsEl)
+      .setName("Default date type")
+      .setDesc("Which Tasks date marker to use when natural-language input contains a date.")
+      .addDropdown((dropdown) => {
+        for (const dateType of DATE_TYPES) {
+          dropdown.addOption(dateType, dateType);
+        }
+
+        dropdown
+          .setValue(this.plugin.settings.defaultDateType)
+          .onChange(async (value) => {
+            if (DATE_TYPES.includes(value as typeof DATE_TYPES[number])) {
+              this.plugin.settings.defaultDateType = value as typeof DATE_TYPES[number];
+              await this.plugin.saveSettings();
+            }
+          });
+      });
+
+    new Setting(defaultsEl)
       .setName("Default tags")
       .setDesc("Optional tags to append to every created task, separated by spaces or commas.")
       .addText((text) => text
@@ -136,43 +131,36 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    new Setting(containerEl)
-      .setName("Tag placement")
-      .setDesc("Where tags should be written in the final task line.")
-      .addDropdown((dropdown) => {
-        for (const placement of METADATA_PLACEMENTS) {
-          dropdown.addOption(placement, placement);
-        }
+    const parsingEl = this.createSettingsGroup(containerEl, "Parsing");
 
-        dropdown
-          .setValue(this.plugin.settings.tagPlacement)
-          .onChange(async (value) => {
-            if (METADATA_PLACEMENTS.includes(value as MetadataPlacement)) {
-              this.plugin.settings.tagPlacement = value as MetadataPlacement;
-              await this.plugin.saveSettings();
-            }
-          });
-      });
+    new Setting(parsingEl)
+      .setName("Remove parsed date text")
+      .setDesc("Remove phrases like tomorrow or next Friday from the visible task text.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.removeParsedDateText)
+        .onChange(async (value) => {
+          this.plugin.settings.removeParsedDateText = value;
+          await this.plugin.saveSettings();
+        }));
 
-    new Setting(containerEl)
-      .setName("Priority placement")
-      .setDesc("Where priority markers should be written in the final task line.")
-      .addDropdown((dropdown) => {
-        for (const placement of METADATA_PLACEMENTS) {
-          dropdown.addOption(placement, placement);
-        }
-
-        dropdown
-          .setValue(this.plugin.settings.priorityPlacement)
-          .onChange(async (value) => {
-            if (METADATA_PLACEMENTS.includes(value as MetadataPlacement)) {
-              this.plugin.settings.priorityPlacement = value as MetadataPlacement;
-              await this.plugin.saveSettings();
-            }
-          });
-      });
+    new Setting(parsingEl)
+      .setName("Task line order")
+      .setDesc(`Controls final Markdown order. Use each token once: ${TASK_LINE_TOKENS.join(", ")}. Aliases like tag, date, note, and prio are accepted.`)
+      .addText((text) => text
+        .setPlaceholder(formatTaskTokenOrder(DEFAULT_SETTINGS.taskTokenOrder))
+        .setValue(formatTaskTokenOrder(this.plugin.settings.taskTokenOrder))
+        .onChange(async (value) => {
+          this.plugin.settings.taskTokenOrder = normalizeTaskTokenOrder(value);
+          await this.plugin.saveSettings();
+        }));
 
     this.renderCommandPresets(containerEl);
+  }
+
+  private createSettingsGroup(containerEl: HTMLElement, title: string): HTMLElement {
+    const groupEl = containerEl.createDiv({ cls: "tasks-quick-add-settings-group" });
+    groupEl.createEl("h3", { text: title });
+    return groupEl;
   }
 
   private renderCommandPresets(containerEl: HTMLElement): void {

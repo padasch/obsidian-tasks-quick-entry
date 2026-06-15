@@ -1,11 +1,13 @@
 export const DATE_TYPES = ["due", "scheduled", "start"] as const;
 export const METADATA_PLACEMENTS = ["first", "where-entered", "last"] as const;
+export const TASK_LINE_TOKENS = ["priority", "text", "notes", "tags", "recurrence", "dates"] as const;
 export const TASK_INSERT_POSITIONS = ["first-line", "last-line"] as const;
 export const TASK_INSERT_TARGETS = ["file", "heading"] as const;
 export const COMMAND_PRESET_DATE_MODES = ["none", "today", "tomorrow", "next-week", "weekend"] as const;
 
 export type DateType = (typeof DATE_TYPES)[number];
 export type MetadataPlacement = (typeof METADATA_PLACEMENTS)[number];
+export type TaskLineToken = (typeof TASK_LINE_TOKENS)[number];
 export type TaskInsertPosition = (typeof TASK_INSERT_POSITIONS)[number];
 export type TaskInsertTarget = (typeof TASK_INSERT_TARGETS)[number];
 export type CommandPresetDateMode = (typeof COMMAND_PRESET_DATE_MODES)[number];
@@ -28,8 +30,9 @@ export interface QuickAddTasksSettings {
   removeParsedDateText: boolean;
   createInboxFile: boolean;
   defaultTags: string;
-  tagPlacement: MetadataPlacement;
-  priorityPlacement: MetadataPlacement;
+  taskTokenOrder: TaskLineToken[];
+  tagPlacement?: MetadataPlacement;
+  priorityPlacement?: MetadataPlacement;
   insertPosition: TaskInsertPosition;
   insertTarget: TaskInsertTarget;
   insertHeading: string;
@@ -59,8 +62,7 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   removeParsedDateText: true,
   createInboxFile: true,
   defaultTags: "",
-  tagPlacement: "last",
-  priorityPlacement: "first",
+  taskTokenOrder: ["priority", "text", "notes", "tags", "recurrence", "dates"],
   insertPosition: "last-line",
   insertTarget: "file",
   insertHeading: "Tasks",
@@ -73,6 +75,10 @@ export function isDateType(value: unknown): value is DateType {
 
 export function isMetadataPlacement(value: unknown): value is MetadataPlacement {
   return typeof value === "string" && METADATA_PLACEMENTS.includes(value as MetadataPlacement);
+}
+
+export function isTaskLineToken(value: unknown): value is TaskLineToken {
+  return typeof value === "string" && TASK_LINE_TOKENS.includes(value as TaskLineToken);
 }
 
 export function isTaskInsertPosition(value: unknown): value is TaskInsertPosition {
@@ -103,12 +109,10 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
       ? incoming.createInboxFile
       : DEFAULT_SETTINGS.createInboxFile,
     defaultTags: typeof incoming.defaultTags === "string" ? incoming.defaultTags.trim() : DEFAULT_SETTINGS.defaultTags,
-    tagPlacement: isMetadataPlacement(incoming.tagPlacement)
-      ? incoming.tagPlacement
-      : DEFAULT_SETTINGS.tagPlacement,
-    priorityPlacement: isMetadataPlacement(incoming.priorityPlacement)
-      ? incoming.priorityPlacement
-      : DEFAULT_SETTINGS.priorityPlacement,
+    taskTokenOrder: normalizeTaskTokenOrder(
+      (incoming as { taskTokenOrder?: unknown }).taskTokenOrder,
+      getLegacyTaskTokenOrder(incoming.tagPlacement, incoming.priorityPlacement),
+    ),
     insertPosition: isTaskInsertPosition(incoming.insertPosition)
       ? incoming.insertPosition
       : DEFAULT_SETTINGS.insertPosition,
@@ -149,6 +153,105 @@ export function parseDefaultTags(defaultTags: string | string[] | undefined): st
     .map((tag) => tag.startsWith("#") ? tag : `#${tag}`);
 
   return Array.from(new Set(normalized));
+}
+
+export function normalizeTaskTokenOrder(
+  value: unknown,
+  fallback: readonly TaskLineToken[] = DEFAULT_SETTINGS.taskTokenOrder,
+): TaskLineToken[] {
+  const rawTokens = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,>]+/)
+      : [];
+  const tokens: TaskLineToken[] = [];
+
+  for (const rawToken of rawTokens) {
+    const token = normalizeTaskLineToken(rawToken);
+    if (token !== null && !tokens.includes(token)) {
+      tokens.push(token);
+    }
+  }
+
+  const base = tokens.length > 0 ? tokens : [...fallback];
+  for (const token of TASK_LINE_TOKENS) {
+    if (!base.includes(token)) {
+      base.push(token);
+    }
+  }
+
+  return base;
+}
+
+export function formatTaskTokenOrder(tokens: readonly TaskLineToken[]): string {
+  return normalizeTaskTokenOrder(tokens).join(", ");
+}
+
+export function getLegacyTaskTokenOrder(
+  tagPlacement: MetadataPlacement | undefined,
+  priorityPlacement: MetadataPlacement | undefined,
+): TaskLineToken[] {
+  const tags = isMetadataPlacement(tagPlacement) ? tagPlacement : "last";
+  const priority = isMetadataPlacement(priorityPlacement) ? priorityPlacement : "first";
+  const tokens: TaskLineToken[] = [];
+
+  if (priority === "first") {
+    tokens.push("priority");
+  }
+
+  if (tags === "first") {
+    tokens.push("tags");
+  }
+
+  tokens.push("text", "notes");
+
+  if (tags !== "first") {
+    tokens.push("tags");
+  }
+
+  if (priority !== "first") {
+    tokens.push("priority");
+  }
+
+  tokens.push("recurrence", "dates");
+  return normalizeTaskTokenOrder(tokens);
+}
+
+function normalizeTaskLineToken(value: unknown): TaskLineToken | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const token = value.trim().toLowerCase();
+  switch (token) {
+    case "text":
+    case "title":
+    case "task":
+      return "text";
+    case "priority":
+    case "prio":
+      return "priority";
+    case "tag":
+    case "tags":
+      return "tags";
+    case "note":
+    case "notes":
+    case "file":
+    case "files":
+    case "link":
+    case "links":
+      return "notes";
+    case "recurrence":
+    case "recurring":
+    case "recurs":
+    case "repeat":
+      return "recurrence";
+    case "date":
+    case "dates":
+      return "dates";
+    default:
+      return null;
+  }
 }
 
 function normalizeCommandPresets(presets: unknown[]): QuickAddCommandPreset[] {

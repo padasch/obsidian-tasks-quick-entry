@@ -32,6 +32,23 @@ test("keeps empty custom command preset arrays empty", () => {
   assert.deepEqual(settings.commandPresets, []);
 });
 
+test("normalizes task line order aliases", () => {
+  const settings = normalizeSettings({
+    taskTokenOrder: "tag, date, text, prio, note",
+  });
+
+  assert.deepEqual(settings.taskTokenOrder, ["tags", "dates", "text", "priority", "notes", "recurrence"]);
+});
+
+test("migrates legacy placement settings to task line order", () => {
+  const settings = normalizeSettings({
+    tagPlacement: "first",
+    priorityPlacement: "last",
+  });
+
+  assert.deepEqual(settings.taskTokenOrder, ["tags", "text", "notes", "priority", "recurrence", "dates"]);
+});
+
 test("normalizes command preset task targets", () => {
   const settings = normalizeSettings({
     commandPresets: [

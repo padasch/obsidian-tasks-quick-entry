@@ -322,6 +322,20 @@
   background: var(--background-modifier-hover);
 }
 
+.tasks-quick-add-settings-group {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.tasks-quick-add-settings-group > h3 {
+  margin: 0 0 6px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
 .tasks-quick-add-settings-command-preset {
   margin: 12px 0;
   border: 1px solid var(--background-modifier-border);

@@ -138,6 +138,19 @@ test("supports tag and priority placement options", () => {
   );
 });
 
+test("supports explicit task token order", () => {
+  const parsed = parseTaskInput("Read [[Paper Notes]] tomorrow #reading prio high", {
+    referenceDate,
+  });
+
+  assert.equal(
+    formatTasksMarkdown(parsed, {
+      taskTokenOrder: ["tags", "dates", "text", "priority", "notes", "recurrence"],
+    }),
+    "- [ ] #reading 📅 2026-06-16 Read ⏫ [[Paper Notes]]",
+  );
+});
+
 test("keeps detected date wording and file links for modal display", () => {
   const parsed = parseTaskInput("Read [[Paper Notes]] tom #reading", {
     referenceDate,

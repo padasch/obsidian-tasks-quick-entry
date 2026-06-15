@@ -50,8 +50,7 @@ export default class TasksQuickAddPlugin extends Plugin {
       this.app,
       this.getParseOptions(preset),
       {
-        tagPlacement: this.settings.tagPlacement,
-        priorityPlacement: this.settings.priorityPlacement,
+        taskTokenOrder: this.settings.taskTokenOrder,
       },
       preset?.name ?? "New task",
       async (draft, target) => {
@@ -67,8 +66,7 @@ export default class TasksQuickAddPlugin extends Plugin {
 
   async addParsedTask(parsed: ParsedTaskInput, target?: TaskWriteTarget | null): Promise<void> {
     const markdownLine = formatTasksMarkdown(parsed, {
-      tagPlacement: this.settings.tagPlacement,
-      priorityPlacement: this.settings.priorityPlacement,
+      taskTokenOrder: this.settings.taskTokenOrder,
     });
     const inboxPath = await appendTaskToInbox(this.app, this.settings, markdownLine, target);
     new Notice(`Added task to ${inboxPath}`);
