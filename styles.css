@@ -324,15 +324,49 @@
 
 .tasks-quick-add-settings-command-preset {
   margin: 12px 0;
-  padding: 12px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
 }
 
-.tasks-quick-add-settings-command-preset > strong {
-  display: block;
-  margin-bottom: 4px;
+.tasks-quick-add-settings-command-preset-summary {
+  padding: 12px;
+  cursor: pointer;
+}
+
+.tasks-quick-add-settings-command-preset-summary-content {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  width: calc(100% - 18px);
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.tasks-quick-add-settings-command-preset-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-quick-add-settings-command-preset-description {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-quick-add-settings-command-preset-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 @media (max-width: 600px) {
@@ -371,5 +405,16 @@
   .tasks-quick-add-date-grid,
   .tasks-quick-add-linked-target-controls {
     grid-template-columns: 1fr;
+  }
+
+  .tasks-quick-add-settings-command-preset-summary-content {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tasks-quick-add-settings-command-preset-description {
+    width: 100%;
+    text-align: left;
   }
 }

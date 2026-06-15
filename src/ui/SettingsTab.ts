@@ -17,6 +17,7 @@ import {
 
 export class TasksQuickAddSettingTab extends PluginSettingTab {
   plugin: TasksQuickAddPlugin;
+  private openPresetIds = new Set<string>();
 
   constructor(plugin: TasksQuickAddPlugin) {
     super(plugin.app, plugin);
@@ -191,27 +192,56 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       .addButton((button) => button
         .setButtonText("Add preset")
         .onClick(async () => {
-          this.plugin.settings.commandPresets.push(createCommandPreset());
+          const preset = createCommandPreset();
+          this.plugin.settings.commandPresets.push(preset);
+          this.openPresetIds.add(preset.id);
           await this.plugin.saveSettings();
           this.display();
         }));
   }
 
   private renderCommandPreset(containerEl: HTMLElement, preset: QuickAddCommandPreset, index: number): void {
-    const presetEl = containerEl.createDiv({ cls: "tasks-quick-add-settings-command-preset" });
-    presetEl.createEl("strong", { text: preset.name });
+    const presetEl = containerEl.createEl("details", {
+      cls: "tasks-quick-add-settings-command-preset",
+    }) as HTMLDetailsElement;
+    presetEl.open = this.openPresetIds.has(preset.id);
+    presetEl.addEventListener("toggle", () => {
+      if (presetEl.open) {
+        this.openPresetIds.add(preset.id);
+      } else {
+        this.openPresetIds.delete(preset.id);
+      }
+    });
 
-    new Setting(presetEl)
+    const summaryEl = presetEl.createEl("summary", {
+      cls: "tasks-quick-add-settings-command-preset-summary",
+    });
+    const summaryContentEl = summaryEl.createSpan({
+      cls: "tasks-quick-add-settings-command-preset-summary-content",
+    });
+    const summaryTitleEl = summaryContentEl.createSpan({
+      cls: "tasks-quick-add-settings-command-preset-title",
+      text: preset.name,
+    });
+    const summaryDescriptionEl = summaryContentEl.createSpan({
+      cls: "tasks-quick-add-settings-command-preset-description",
+      text: this.describeCommandPreset(preset),
+    });
+    const bodyEl = presetEl.createDiv({ cls: "tasks-quick-add-settings-command-preset-body" });
+
+    new Setting(bodyEl)
       .setName("Command name")
       .setDesc("Name shown in the Obsidian command palette.")
       .addText((text) => text
         .setValue(preset.name)
         .onChange(async (value) => {
           preset.name = value.trim() || `Task command ${index + 1}`;
+          summaryTitleEl.setText(preset.name);
+          summaryDescriptionEl.setText(this.describeCommandPreset(preset));
           await this.plugin.saveSettings();
         }));
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Automatic date")
       .setDesc("Optional date applied when this command opens the task entry modal.")
       .addDropdown((dropdown) => {
@@ -233,7 +263,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       });
 
     if (preset.dateMode !== "none") {
-      new Setting(presetEl)
+      new Setting(bodyEl)
         .setName("Automatic date type")
         .setDesc("Which Tasks date marker receives the automatic date.")
         .addDropdown((dropdown) => {
@@ -246,13 +276,14 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
             .onChange(async (value) => {
               if (DATE_TYPES.includes(value as typeof DATE_TYPES[number])) {
                 preset.dateType = value as typeof DATE_TYPES[number];
+                summaryDescriptionEl.setText(this.describeCommandPreset(preset));
                 await this.plugin.saveSettings();
               }
             });
         });
     }
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Preset tags")
       .setDesc("Tags added by this command, separated by spaces or commas.")
       .addText((text) => text
@@ -260,10 +291,11 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
         .setValue(preset.defaultTags)
         .onChange(async (value) => {
           preset.defaultTags = value.trim();
+          summaryDescriptionEl.setText(this.describeCommandPreset(preset));
           await this.plugin.saveSettings();
         }));
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Preset task file")
       .setDesc("Optional markdown file for this command. Leave empty to use the global task file.")
       .addText((text) => text
@@ -271,10 +303,11 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
         .setValue(preset.inboxPath ?? "")
         .onChange(async (value) => {
           preset.inboxPath = value.trim() || undefined;
+          summaryDescriptionEl.setText(this.describeCommandPreset(preset));
           await this.plugin.saveSettings();
         }));
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Preset insert position")
       .setDesc("Optional insertion position for this command.")
       .addDropdown((dropdown) => {
@@ -288,11 +321,12 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
             preset.insertPosition = TASK_INSERT_POSITIONS.includes(value as TaskInsertPosition)
               ? value as TaskInsertPosition
               : undefined;
+            summaryDescriptionEl.setText(this.describeCommandPreset(preset));
             await this.plugin.saveSettings();
           });
       });
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Preset insert target")
       .setDesc("Optional target mode for this command.")
       .addDropdown((dropdown) => {
@@ -311,7 +345,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Preset heading")
       .setDesc("Optional heading for this command. Entering a heading makes this preset insert under that heading unless a target file is detected in the task input.")
       .addText((text) => text
@@ -319,10 +353,11 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
         .setValue(preset.insertHeading ?? "")
         .onChange(async (value) => {
           preset.insertHeading = value.trim() || undefined;
+          summaryDescriptionEl.setText(this.describeCommandPreset(preset));
           await this.plugin.saveSettings();
         }));
 
-    new Setting(presetEl)
+    new Setting(bodyEl)
       .setName("Remove preset")
       .setDesc("Delete this extra command type.")
       .addButton((button) => button
@@ -333,5 +368,66 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.display();
         }));
+  }
+
+  private describeCommandPreset(preset: QuickAddCommandPreset): string {
+    const parts: string[] = [];
+
+    if (preset.dateMode !== "none") {
+      parts.push(`${this.formatDateMode(preset.dateMode)} ${preset.dateType}`);
+    }
+
+    if (preset.defaultTags.trim().length > 0) {
+      parts.push(preset.defaultTags.trim());
+    }
+
+    const target = this.describePresetTarget(preset);
+    if (target) {
+      parts.push(target);
+    }
+
+    return parts.length > 0 ? parts.join(" - ") : "uses global defaults";
+  }
+
+  private describePresetTarget(preset: QuickAddCommandPreset): string | null {
+    const hasTargetOverride = Boolean(
+      preset.inboxPath
+      || preset.insertPosition
+      || preset.insertTarget
+      || preset.insertHeading,
+    );
+    if (!hasTargetOverride) {
+      return null;
+    }
+
+    const targetParts = [preset.inboxPath?.trim() || "global file"];
+    const heading = preset.insertHeading?.trim();
+
+    if (preset.insertTarget === "heading" || heading) {
+      targetParts.push(heading ? `# ${heading}` : "heading");
+    } else if (preset.insertTarget === "file") {
+      targetParts.push("file");
+    }
+
+    if (preset.insertPosition) {
+      targetParts.push(preset.insertPosition === "first-line" ? "first line" : "last line");
+    }
+
+    return targetParts.join(" / ");
+  }
+
+  private formatDateMode(dateMode: CommandPresetDateMode): string {
+    switch (dateMode) {
+      case "today":
+        return "today";
+      case "tomorrow":
+        return "tomorrow";
+      case "next-week":
+        return "next week";
+      case "weekend":
+        return "weekend";
+      case "none":
+        return "no date";
+    }
   }
 }
