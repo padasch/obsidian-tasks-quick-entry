@@ -369,6 +369,16 @@
   border-top: 1px solid var(--background-modifier-border);
 }
 
+.tasks-quick-add-settings-command-preset-section {
+  margin: 16px 0 4px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
+.tasks-quick-add-settings-command-preset-section-description {
+  margin: 0 0 4px;
+}
+
 @media (max-width: 600px) {
   .modal.tasks-quick-add-shell {
     width: calc(100vw - 20px);

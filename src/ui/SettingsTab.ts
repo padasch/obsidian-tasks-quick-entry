@@ -295,9 +295,18 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
+    bodyEl.createEl("h4", {
+      cls: "tasks-quick-add-settings-command-preset-section",
+      text: "Task target",
+    });
+    bodyEl.createEl("p", {
+      cls: "setting-item-description tasks-quick-add-settings-command-preset-section-description",
+      text: "Choose where tasks created by this command are saved. A file link typed in the task input can still override this target.",
+    });
+
     new Setting(bodyEl)
-      .setName("Preset task file")
-      .setDesc("Optional markdown file for this command. Leave empty to use the global task file.")
+      .setName("Task target file")
+      .setDesc("Markdown file where this command writes tasks. Leave empty to use the global task file.")
       .addText((text) => text
         .setPlaceholder(this.plugin.settings.inboxPath || DEFAULT_SETTINGS.inboxPath)
         .setValue(preset.inboxPath ?? "")
@@ -308,8 +317,8 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
         }));
 
     new Setting(bodyEl)
-      .setName("Preset insert position")
-      .setDesc("Optional insertion position for this command.")
+      .setName("Task target position")
+      .setDesc("Where tasks are inserted in the selected file or heading.")
       .addDropdown((dropdown) => {
         dropdown.addOption("", "use global");
         dropdown.addOption("first-line", "first line");
@@ -327,8 +336,8 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       });
 
     new Setting(bodyEl)
-      .setName("Preset insert target")
-      .setDesc("Optional target mode for this command.")
+      .setName("Task target scope")
+      .setDesc("Write to the whole file or under a specific heading.")
       .addDropdown((dropdown) => {
         dropdown.addOption("", "use global");
         dropdown.addOption("file", "file");
@@ -346,8 +355,8 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       });
 
     new Setting(bodyEl)
-      .setName("Preset heading")
-      .setDesc("Optional heading for this command. Entering a heading makes this preset insert under that heading unless a target file is detected in the task input.")
+      .setName("Task target heading")
+      .setDesc("Heading for this command. If it does not exist in the target file, it is created at the top.")
       .addText((text) => text
         .setPlaceholder(this.plugin.settings.insertHeading || DEFAULT_SETTINGS.insertHeading)
         .setValue(preset.insertHeading ?? "")
@@ -381,26 +390,13 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       parts.push(preset.defaultTags.trim());
     }
 
-    const target = this.describePresetTarget(preset);
-    if (target) {
-      parts.push(target);
-    }
+    parts.push(this.describePresetTarget(preset));
 
-    return parts.length > 0 ? parts.join(" - ") : "uses global defaults";
+    return parts.join(" - ");
   }
 
-  private describePresetTarget(preset: QuickAddCommandPreset): string | null {
-    const hasTargetOverride = Boolean(
-      preset.inboxPath
-      || preset.insertPosition
-      || preset.insertTarget
-      || preset.insertHeading,
-    );
-    if (!hasTargetOverride) {
-      return null;
-    }
-
-    const targetParts = [preset.inboxPath?.trim() || "global file"];
+  private describePresetTarget(preset: QuickAddCommandPreset): string {
+    const targetParts = [preset.inboxPath?.trim() || "global task file"];
     const heading = preset.insertHeading?.trim();
 
     if (preset.insertTarget === "heading" || heading) {
@@ -413,7 +409,7 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
       targetParts.push(preset.insertPosition === "first-line" ? "first line" : "last line");
     }
 
-    return targetParts.join(" / ");
+    return `Target: ${targetParts.join(" / ")}`;
   }
 
   private formatDateMode(dateMode: CommandPresetDateMode): string {
