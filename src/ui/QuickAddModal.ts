@@ -968,10 +968,12 @@ export class QuickAddModal extends Modal {
         this.insertSuggestion(index);
       });
       const labelEl = item.createEl("span", { cls: "tasks-quick-add-suggestion-label" });
-      labelEl.createEl("kbd", {
-        cls: "tasks-quick-add-suggestion-shortcut",
-        text: formatSuggestionShortcut(index, this.activeTrigger?.query ?? ""),
-      });
+      if (!Platform.isMobile) {
+        labelEl.createEl("kbd", {
+          cls: "tasks-quick-add-suggestion-shortcut",
+          text: formatSuggestionShortcut(index, this.activeTrigger?.query ?? ""),
+        });
+      }
       labelEl.createEl("span", { text: suggestion.label });
       item.createEl("small", { text: suggestion.detail });
     }
