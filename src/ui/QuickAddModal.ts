@@ -876,9 +876,12 @@ export class QuickAddModal extends Modal {
   }
 
   private getPrioritySuggestions(query: string): CompletionSuggestion[] {
-    return PRIORITY_LEVELS
-      .map((level) => priorityFromLevel(level))
-      .filter((priority) => priority.level.startsWith(query) || priority.label.toLowerCase().startsWith(query))
+    return fuzzyRank(
+      PRIORITY_LEVELS.map((level) => priorityFromLevel(level)),
+      query,
+      (priority) => [priority.level, priority.label],
+      8,
+    )
       .map((priority) => ({
         kind: "priority",
         label: priority.marker ? `${priority.label} ${priority.marker}` : priority.label,
@@ -915,10 +918,8 @@ export class QuickAddModal extends Modal {
       }
     }
 
-    return Array.from(tags)
-      .filter((tag) => tag.toLowerCase().slice(1).startsWith(query))
-      .sort((a, b) => a.localeCompare(b))
-      .slice(0, 8)
+    const sortedTags = Array.from(tags).sort((a, b) => a.localeCompare(b));
+    return fuzzyRank(sortedTags, query, getTagSuggestionSearchText, 8)
       .map((tag) => ({
         kind: "tag",
         label: tag,
@@ -928,14 +929,19 @@ export class QuickAddModal extends Modal {
   }
 
   private getNoteSuggestions(query: string): CompletionSuggestion[] {
-    return this.app.vault.getMarkdownFiles()
+    const notes = this.app.vault.getMarkdownFiles()
       .map((file) => ({
         file,
         linkText: this.app.metadataCache.fileToLinktext(file, "", true),
       }))
-      .filter(({ linkText, file }) => `${linkText} ${file.path}`.toLowerCase().includes(query))
-      .sort((a, b) => a.linkText.localeCompare(b.linkText))
-      .slice(0, 8)
+      .sort((a, b) => a.linkText.localeCompare(b.linkText));
+
+    return fuzzyRank(
+      notes,
+      query,
+      ({ linkText, file }) => [linkText, file.path],
+      8,
+    )
       .map(({ file, linkText }) => ({
         kind: "note",
         label: linkText,
@@ -1060,47 +1066,181 @@ function formatSuggestionShortcut(index: number, _query: string): string {
   return Platform.isMacOS ? `⌘${number}` : `Ctrl+${number}`;
 }
 
+function fuzzyRank<T>(
+  items: T[],
+  query: string,
+  getSearchText: (item: T) => string | string[],
+  limit: number,
+): T[] {
+  const normalizedQuery = normalizeFuzzyText(query);
+  if (normalizedQuery.length === 0) {
+    return items.slice(0, limit);
+  }
+
+  return items
+    .map((item) => ({
+      item,
+      score: getBestFuzzyScore(normalizedQuery, getSearchText(item)),
+    }))
+    .filter((ranked): ranked is { item: T; score: number } => ranked.score !== null)
+    .sort((a, b) => b.score - a.score || getFuzzySortText(getSearchText(a.item)).localeCompare(getFuzzySortText(getSearchText(b.item))))
+    .slice(0, limit)
+    .map((ranked) => ranked.item);
+}
+
+function getBestFuzzyScore(query: string, searchText: string | string[]): number | null {
+  const values = Array.isArray(searchText) ? searchText : [searchText];
+  let bestScore: number | null = null;
+
+  for (const value of values) {
+    const score = fuzzyScore(query, value);
+    if (score !== null && (bestScore === null || score > bestScore)) {
+      bestScore = score;
+    }
+  }
+
+  return bestScore;
+}
+
+function fuzzyScore(normalizedQuery: string, candidate: string): number | null {
+  const normalizedCandidate = normalizeFuzzyText(candidate);
+  if (normalizedCandidate.length === 0) {
+    return null;
+  }
+
+  if (normalizedCandidate === normalizedQuery) {
+    return 1000 - normalizedCandidate.length;
+  }
+
+  if (normalizedCandidate.startsWith(normalizedQuery)) {
+    return 900 - normalizedCandidate.length;
+  }
+
+  const wordStartIndex = normalizedCandidate
+    .split(" ")
+    .findIndex((word) => word.startsWith(normalizedQuery));
+  if (wordStartIndex !== -1) {
+    return 820 - wordStartIndex * 10 - normalizedCandidate.length;
+  }
+
+  const includesIndex = normalizedCandidate.indexOf(normalizedQuery);
+  if (includesIndex !== -1) {
+    return 720 - includesIndex - normalizedCandidate.length / 10;
+  }
+
+  const acronym = normalizedCandidate
+    .split(" ")
+    .filter((word) => word.length > 0)
+    .map((word) => word[0])
+    .join("");
+  if (acronym.startsWith(normalizedQuery)) {
+    return 680 - normalizedCandidate.length;
+  }
+
+  if (normalizedQuery.length < 3) {
+    return null;
+  }
+
+  const positions = getSubsequencePositions(normalizedQuery, normalizedCandidate);
+  if (positions === null) {
+    return null;
+  }
+
+  const spread = positions[positions.length - 1] - positions[0];
+  return 460 - spread * 2 - positions[0] - normalizedCandidate.length / 10;
+}
+
+function getSubsequencePositions(query: string, candidate: string): number[] | null {
+  const positions: number[] = [];
+  let candidateIndex = 0;
+
+  for (const char of query) {
+    const foundIndex = candidate.indexOf(char, candidateIndex);
+    if (foundIndex === -1) {
+      return null;
+    }
+
+    positions.push(foundIndex);
+    candidateIndex = foundIndex + 1;
+  }
+
+  return positions;
+}
+
+function normalizeFuzzyText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getTagSuggestionSearchText(tag: string): string[] {
+  const normalizedTag = tag.trim();
+  if (normalizedTag.length === 0) {
+    return [];
+  }
+
+  const tagWithoutHash = normalizedTag.startsWith("#") ? normalizedTag.slice(1) : normalizedTag;
+  const parts = tagWithoutHash.split("/").filter((part) => part.length > 0);
+  const searchTexts = new Set<string>();
+
+  searchTexts.add(normalizedTag);
+  searchTexts.add(tagWithoutHash);
+  searchTexts.add(tagWithoutHash.replace("/", " "));
+  searchTexts.add(parts.join(" "));
+  for (let i = 0; i < parts.length; i += 1) {
+    searchTexts.add(parts[i]);
+  }
+
+  return Array.from(searchTexts);
+}
+
+function getFuzzySortText(searchText: string | string[]): string {
+  return Array.isArray(searchText) ? searchText[0] : searchText;
+}
+
 function getDateCompletionPhrases(query: string): string[] {
   const normalized = query.trim().toLowerCase();
   const relativePhrases = getRelativeDateCompletionPhrases(normalized);
   const aliasPhrases = DATE_ALIAS_COMPLETIONS[normalized] === undefined ? [] : [DATE_ALIAS_COMPLETIONS[normalized]];
   const staticPhrases = normalized.length < 3
     ? []
-    : DATE_COMPLETION_PHRASES.filter((phrase) => phrase.toLowerCase().startsWith(normalized));
+    : fuzzyRank(DATE_COMPLETION_PHRASES, normalized, (phrase) => phrase, 8);
   const allPhrases = [...relativePhrases, ...aliasPhrases, ...staticPhrases];
   return Array.from(new Set(allPhrases)).slice(0, 8);
 }
 
 function getRelativeDateCompletionPhrases(query: string): string[] {
-  const prefixedMatch = query.match(/^(in|within)\s+([a-z0-9]+)(?:\s+([a-z]*))?$/i);
+  const prefixedMatch = query.match(/^(in|within)\s+([a-z0-9]+)(?:\s*([a-z]*))?$/i);
   if (prefixedMatch !== null) {
     const prefix = prefixedMatch[1].toLowerCase();
     const amount = prefixedMatch[2].toLowerCase();
     const unitPrefix = (prefixedMatch[3] ?? "").toLowerCase();
-    return getRelativeUnits(unitPrefix)
-      .map((unit) => `${prefix} ${amount} ${unit}`)
-      .filter((phrase) => phrase.startsWith(query));
+    const phrases = getRelativeUnits(unitPrefix)
+      .map((unit) => `${prefix} ${amount} ${unit}`);
+    return fuzzyRank(phrases, query, (phrase) => phrase, 8);
   }
 
-  const bareMatch = query.match(/^([0-9]+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s+([a-z]*))?$/i);
+  const bareMatch = query.match(/^([0-9]+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s*([a-z]*))?$/i);
   if (bareMatch === null) {
     return [];
   }
 
   const amount = bareMatch[1].toLowerCase();
   const unitPrefix = (bareMatch[2] ?? "").toLowerCase();
-  return getRelativeUnits(unitPrefix)
+  const phrases = getRelativeUnits(unitPrefix)
     .flatMap((unit) => [
       `${amount} ${unit}`,
       `${amount} ${unit} from now`,
       `${amount} ${unit} later`,
       `${amount} ${unit} ago`,
-    ])
-    .filter((phrase) => phrase.startsWith(query));
+    ]);
+  return fuzzyRank(phrases, query, (phrase) => phrase, 8);
 }
 
 function getRelativeUnits(query: string): string[] {
-  return ["days", "weeks", "months", "years"].filter((unit) => unit.startsWith(query));
+  return fuzzyRank(["days", "weeks", "months", "years"], query, (unit) => unit, 4);
 }
 
 function formatDetectedDateText(dateText: string | undefined, date: string): string {
