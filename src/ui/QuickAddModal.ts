@@ -130,13 +130,21 @@ const RECURRENCE_COMPLETION_PHRASES = [
   "every friday",
   "every saturday",
   "every sunday",
+  "every thursday and friday",
+  "every monday, wednesday and friday",
   "every other monday",
   "every other friday",
   "every 2 weeks on friday",
+  "every second day of the month",
+  "every third friday of the month",
   "every month on the second monday",
+  "every month on the 2nd",
+  "every month on the 3rd friday",
   "every last friday of the month",
   "every week on monday",
   "every week on friday",
+  "weekly on monday",
+  "weekly on friday",
 ];
 
 const RECURRENCE_PLACEHOLDER = "every week on Monday";
@@ -1080,7 +1088,7 @@ export class QuickAddModal extends Modal {
       }
     }
 
-    const recurrenceMatch = beforeCursor.match(/(^|\s)(every(?:\s+[a-z0-9]+){0,4})$/i);
+    const recurrenceMatch = beforeCursor.match(/(^|\s)((?:every|weekly)(?:\s+[a-z0-9]+){0,4})$/i);
     if (recurrenceMatch !== null) {
       const query = recurrenceMatch[2].trim().toLowerCase();
       if (query.length >= this.completionTriggerLength) {

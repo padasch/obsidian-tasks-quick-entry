@@ -134,7 +134,7 @@ function monthlyOrdinalDayRegex(): RegExp {
 }
 
 function weeklyOnRegex(): RegExp {
-  return buildRegex(`${EVERY_PREFIX}\\s+(?:(?<interval>\\d+)\\s+)?weeks?\\s+on\\s+(?<weekdays>${WEEKDAY_LIST_PATTERN})(?:\\s+(?<whenDone>when\\s+done))?`);
+  return buildRegex(`(?:(?:${EVERY_PREFIX}\\s+(?:(?<interval>\\d+)\\s+)?weeks?)|weekly)\\s+on\\s+(?<weekdays>${WEEKDAY_LIST_PATTERN})(?:\\s+(?<whenDone>when\\s+done))?`);
 }
 
 function everyOtherWeekdayRegex(): RegExp {
@@ -146,7 +146,7 @@ function everyWeekdayRegex(): RegExp {
 }
 
 function simpleWeekdayRegex(): RegExp {
-  return buildRegex(`${EVERY_PREFIX}\\s+(?<weekday>${WEEKDAY_PATTERN})(?:\\s+(?<whenDone>when\\s+done))?`);
+  return buildRegex(`${EVERY_PREFIX}\\s+(?<weekdays>${WEEKDAY_LIST_PATTERN})(?:\\s+(?<whenDone>when\\s+done))?`);
 }
 
 function intervalRegex(): RegExp {
@@ -240,14 +240,14 @@ function buildEveryWeekday(match: RegExpExecArray, reference: Date) {
 }
 
 function buildSimpleWeekday(match: RegExpExecArray, reference: Date) {
-  const weekday = normalizeWeekday(match.groups?.weekday ?? "");
-  if (weekday === null) {
+  const weekdays = parseWeekdayList(match.groups?.weekdays ?? "");
+  if (weekdays.length === 0) {
     return null;
   }
 
   return {
-    rule: withWhenDone(`every week on ${weekday.name}`, match),
-    inferredDate: nextWeekdayInList(reference, [weekday.index]),
+    rule: withWhenDone(`every week on ${weekdays.map((weekday) => weekday.name).join(", ")}`, match),
+    inferredDate: nextWeekdayInList(reference, weekdays.map((weekday) => weekday.index)),
   };
 }
 

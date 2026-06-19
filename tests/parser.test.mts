@@ -377,6 +377,54 @@ test("parses simple weekday recurrence and infers a date", () => {
   assert.equal(formatTasksMarkdown(parsed), "- [ ] Water plants #home 🔁 every week on Monday 📅 2026-06-15");
 });
 
+test("normalizes simple multi-day weekday recurrences", () => {
+  const parsed = parseTaskInput("Repeat every thursday and friday", {
+    referenceDate,
+  });
+
+  assert.equal(parsed.title, "Repeat");
+  assert.equal(parsed.recurrence?.matchedText, "every thursday and friday");
+  assert.equal(parsed.recurrence?.rule, "every week on Thursday, Friday");
+  assert.equal(parsed.dates.due, "2026-06-18");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Repeat 🔁 every week on Thursday, Friday 📅 2026-06-18");
+
+  const commaList = parseTaskInput("Review every monday, wednesday and friday", {
+    referenceDate,
+  });
+  assert.equal(commaList.recurrence?.rule, "every week on Monday, Wednesday, Friday");
+  assert.equal(commaList.dates.due, "2026-06-15");
+
+  const whenDone = parseTaskInput("Clean filters every thursday and friday when done", {
+    referenceDate,
+  });
+  assert.equal(whenDone.recurrence?.rule, "every week on Thursday, Friday when done");
+  assert.equal(whenDone.dates.due, "2026-06-18");
+});
+
+test("normalizes weekly on recurrence aliases", () => {
+  const parsed = parseTaskInput("Water plants weekly on monday #home", {
+    referenceDate,
+  });
+
+  assert.equal(parsed.title, "Water plants #home");
+  assert.equal(parsed.recurrence?.matchedText, "weekly on monday");
+  assert.equal(parsed.recurrence?.rule, "every week on Monday");
+  assert.equal(parsed.dates.due, "2026-06-15");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Water plants #home 🔁 every week on Monday 📅 2026-06-15");
+
+  const multiDay = parseTaskInput("Review queue weekly on Tuesday and Friday", {
+    referenceDate,
+  });
+  assert.equal(multiDay.recurrence?.rule, "every week on Tuesday, Friday");
+  assert.equal(multiDay.dates.due, "2026-06-16");
+
+  const whenDone = parseTaskInput("Clean filters Weekly on Friday when done", {
+    referenceDate,
+  });
+  assert.equal(whenDone.recurrence?.rule, "every week on Friday when done");
+  assert.equal(whenDone.dates.due, "2026-06-19");
+});
+
 test("normalizes ordinal monthly weekday recurrence", () => {
   const parsed = parseTaskInput("Plan agenda every second monday of the month", {
     referenceDate,
@@ -386,6 +434,21 @@ test("normalizes ordinal monthly weekday recurrence", () => {
   assert.equal(parsed.recurrence?.rule, "every month on the 2nd Monday");
   assert.equal(parsed.dates.due, "2026-07-13");
   assert.equal(formatTasksMarkdown(parsed), "- [ ] Plan agenda 🔁 every month on the 2nd Monday 📅 2026-07-13");
+
+  const naturalThirdFriday = parseTaskInput("Repeat every third Friday of the month", {
+    referenceDate,
+  });
+  assert.equal(naturalThirdFriday.title, "Repeat");
+  assert.equal(naturalThirdFriday.recurrence?.matchedText, "every third Friday of the month");
+  assert.equal(naturalThirdFriday.recurrence?.rule, "every month on the 3rd Friday");
+  assert.equal(naturalThirdFriday.dates.due, "2026-06-19");
+
+  const tasksSyntaxThirdFriday = parseTaskInput("Repeat every month on the 3rd Friday", {
+    referenceDate,
+  });
+  assert.equal(tasksSyntaxThirdFriday.title, "Repeat");
+  assert.equal(tasksSyntaxThirdFriday.recurrence?.rule, "every month on the 3rd Friday");
+  assert.equal(tasksSyntaxThirdFriday.dates.due, "2026-06-19");
 });
 
 test("normalizes last weekday monthly recurrence", () => {
@@ -395,6 +458,24 @@ test("normalizes last weekday monthly recurrence", () => {
 
   assert.equal(parsed.recurrence?.rule, "every month on the last Friday");
   assert.equal(parsed.dates.due, "2026-06-26");
+});
+
+test("normalizes ordinal monthly day recurrence", () => {
+  const naturalSecondDay = parseTaskInput("Repeat every second day of the month", {
+    referenceDate,
+  });
+
+  assert.equal(naturalSecondDay.title, "Repeat");
+  assert.equal(naturalSecondDay.recurrence?.matchedText, "every second day of the month");
+  assert.equal(naturalSecondDay.recurrence?.rule, "every month on the 2nd");
+  assert.equal(naturalSecondDay.dates.due, "2026-07-02");
+
+  const tasksSyntaxSecondDay = parseTaskInput("Repeat every month on the 2nd", {
+    referenceDate,
+  });
+  assert.equal(tasksSyntaxSecondDay.title, "Repeat");
+  assert.equal(tasksSyntaxSecondDay.recurrence?.rule, "every month on the 2nd");
+  assert.equal(tasksSyntaxSecondDay.dates.due, "2026-07-02");
 });
 
 test("keeps explicit dates over recurrence-inferred dates", () => {
