@@ -24,6 +24,8 @@ test("extracts incomplete, completed, custom status, and nested tasks", () => {
     completed: result.completed,
     heading: result.heading,
     tags: result.tags,
+    links: result.links,
+    hasDueDate: result.hasDueDate,
   })), [
     {
       line: 1,
@@ -32,6 +34,8 @@ test("extracts incomplete, completed, custom status, and nested tasks", () => {
       completed: false,
       heading: "Project Alpha",
       tags: ["#writing"],
+      links: [],
+      hasDueDate: false,
     },
     {
       line: 2,
@@ -40,6 +44,8 @@ test("extracts incomplete, completed, custom status, and nested tasks", () => {
       completed: true,
       heading: "Project Alpha",
       tags: [],
+      links: [],
+      hasDueDate: false,
     },
     {
       line: 3,
@@ -48,6 +54,8 @@ test("extracts incomplete, completed, custom status, and nested tasks", () => {
       completed: true,
       heading: "Project Alpha",
       tags: ["#blocked"],
+      links: [],
+      hasDueDate: false,
     },
   ]);
 });
@@ -93,6 +101,49 @@ test("search includes tags and headings", () => {
 
   assert.equal(searchTaskResults(tasks, "phd")[0]?.taskText, "Read paper #phd");
   assert.equal(searchTaskResults(tasks, "admin")[0]?.taskText, "Renew license");
+});
+
+test("extracts links and due date presence", () => {
+  const tasks = extractTaskSearchResults({
+    filePath: "Tasks.md",
+    content: "- [ ] Review [[Project Note|project]] #work 📅 2026-06-22",
+  });
+
+  assert.deepEqual(tasks[0]?.links, ["Project Note|project"]);
+  assert.equal(tasks[0]?.hasDueDate, true);
+});
+
+test("filters by completion, tags, links, and missing due date", () => {
+  const tasks = extractTaskSearchResults({
+    filePath: "Tasks.md",
+    content: [
+      "- [ ] Open with tag #work",
+      "- [x] Done with tag #work",
+      "- [ ] Open with link [[Project]]",
+      "- [ ] Open with due 📅 2026-06-22",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { completion: "open" } }).map((task) => task.taskText),
+    ["Open with tag #work", "Open with link [[Project]]", "Open with due 📅 2026-06-22"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { completion: "completed" } }).map((task) => task.taskText),
+    ["Done with tag #work"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { hasTag: true } }).map((task) => task.taskText),
+    ["Open with tag #work", "Done with tag #work"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { hasLink: true } }).map((task) => task.taskText),
+    ["Open with link [[Project]]"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { noDueDate: true } }).map((task) => task.taskText),
+    ["Open with tag #work", "Open with link [[Project]]", "Done with tag #work"],
+  );
 });
 
 test("incomplete tasks sort before completed tasks when scores match", () => {

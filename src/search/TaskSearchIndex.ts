@@ -1,8 +1,10 @@
 import { TFile, type App, type CachedMetadata, type ListItemCache } from "obsidian";
 import {
   extractTaskSearchResults,
+  filterTaskResults,
   searchTaskResults,
   type TaskSearchHeading,
+  type TaskSearchFilters,
   type TaskSearchListItem,
   type TaskSearchResult,
 } from "./taskSearchCore.ts";
@@ -40,8 +42,12 @@ export class TaskSearchIndex {
     return this.buildPromise;
   }
 
-  search(query: string): TaskSearchResult[] {
-    return searchTaskResults(this.getAllResults(), query);
+  getCount(filters?: TaskSearchFilters): number {
+    return filterTaskResults(this.getAllResults(), filters).length;
+  }
+
+  search(query: string, filters?: TaskSearchFilters): TaskSearchResult[] {
+    return searchTaskResults(this.getAllResults(), query, { filters });
   }
 
   async refreshFile(file: TFile): Promise<void> {

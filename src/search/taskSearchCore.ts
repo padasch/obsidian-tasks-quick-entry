@@ -10,6 +10,8 @@ export interface TaskSearchResult {
   completed: boolean;
   heading?: string;
   tags: string[];
+  links: string[];
+  hasDueDate: boolean;
 }
 
 export interface TaskSearchListItem {
@@ -31,10 +33,22 @@ export interface ExtractTaskSearchResultsOptions {
 
 export interface SearchTaskResultsOptions {
   maxResults?: number;
+  filters?: TaskSearchFilters;
+}
+
+export type TaskCompletionFilter = "open" | "completed" | "all";
+
+export interface TaskSearchFilters {
+  completion?: TaskCompletionFilter;
+  hasTag?: boolean;
+  hasLink?: boolean;
+  noDueDate?: boolean;
 }
 
 const TASK_LINE_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+\[([^\]\r\n])\]\s*(.*)$/;
 const TAG_PATTERN = /(^|\s)#[^ !@#$%^&*(),.?":{}|<>\[\]]+/g;
+const WIKILINK_PATTERN = /\[\[([^\]\r\n]+)\]\]/g;
+const DUE_DATE_PATTERN = /(?:📅|due(?: date)?[:：])\s*\d{4}-\d{2}-\d{2}/i;
 
 export function extractTaskSearchResults(options: ExtractTaskSearchResultsOptions): TaskSearchResult[] {
   const lines = splitLines(options.content);
@@ -65,6 +79,8 @@ export function extractTaskSearchResults(options: ExtractTaskSearchResultsOption
         completed: taskLine.status !== " ",
         heading: findNearestHeading(headings, item.line),
         tags: extractTags(taskText),
+        links: extractLinks(taskText),
+        hasDueDate: DUE_DATE_PATTERN.test(taskText),
       }];
     });
 }
@@ -76,12 +92,13 @@ export function searchTaskResults(
 ): TaskSearchResult[] {
   const maxResults = options.maxResults ?? 50;
   const normalizedQuery = query.trim();
+  const filteredTasks = filterTaskResults(tasks, options.filters);
 
   if (normalizedQuery.length === 0) {
-    return sortDefaultResults(tasks).slice(0, maxResults);
+    return sortDefaultResults(filteredTasks).slice(0, maxResults);
   }
 
-  return tasks
+  return filteredTasks
     .map((task) => ({ task, score: scoreTaskResult(task, normalizedQuery) }))
     .filter((entry): entry is { task: TaskSearchResult; score: number } => entry.score !== null)
     .sort((a, b) => {
@@ -92,6 +109,30 @@ export function searchTaskResults(
     })
     .map((entry) => entry.task)
     .slice(0, maxResults);
+}
+
+export function filterTaskResults(tasks: TaskSearchResult[], filters: TaskSearchFilters = {}): TaskSearchResult[] {
+  const completion = filters.completion ?? "all";
+
+  return tasks.filter((task) => {
+    if (completion === "open" && task.completed) {
+      return false;
+    }
+    if (completion === "completed" && !task.completed) {
+      return false;
+    }
+    if (filters.hasTag && task.tags.length === 0) {
+      return false;
+    }
+    if (filters.hasLink && task.links.length === 0) {
+      return false;
+    }
+    if (filters.noDueDate && task.hasDueDate) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export function parseMarkdownTaskLine(lineText: string, statusOverride?: string): { status: string; taskText: string } | null {
@@ -110,6 +151,7 @@ function scoreTaskResult(task: TaskSearchResult, query: string): number | null {
   const scores = [
     weightedScore(task.taskText, query, 4),
     weightedScore(task.tags.join(" "), query, 2.5),
+    weightedScore(task.links.join(" "), query, 2.25),
     weightedScore(task.heading ?? "", query, 2),
     weightedScore(task.filePath, query, 1),
     weightedScore(`${task.taskText} ${task.tags.join(" ")} ${task.heading ?? ""} ${task.filePath}`, query, 0.75),
@@ -162,6 +204,11 @@ function findNearestHeading(headings: TaskSearchHeading[], line: number): string
 
 function extractTags(input: string): string[] {
   return input.match(TAG_PATTERN)?.map((tag) => tag.trim()) ?? [];
+}
+
+function extractLinks(input: string): string[] {
+  return Array.from(input.matchAll(WIKILINK_PATTERN), (match) => match[1].trim())
+    .filter((link) => link.length > 0);
 }
 
 function splitLines(content: string): string[] {

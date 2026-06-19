@@ -1,6 +1,10 @@
 import { MarkdownView, Modal, Notice, TFile, type App } from "obsidian";
 import { TaskSearchIndex } from "../search/TaskSearchIndex.ts";
-import type { TaskSearchResult } from "../search/taskSearchCore.ts";
+import type {
+  TaskCompletionFilter,
+  TaskSearchFilters,
+  TaskSearchResult,
+} from "../search/taskSearchCore.ts";
 
 export class TaskSearchModal extends Modal {
   private inputEl!: HTMLInputElement;
@@ -9,6 +13,10 @@ export class TaskSearchModal extends Modal {
   private results: TaskSearchResult[] = [];
   private selectedIndex = 0;
   private ready = false;
+  private completionFilter: TaskCompletionFilter = "open";
+  private hasTagFilter = false;
+  private hasLinkFilter = false;
+  private noDueDateFilter = false;
 
   constructor(
     app: App,
@@ -35,6 +43,7 @@ export class TaskSearchModal extends Modal {
     });
     this.inputEl.type = "text";
 
+    this.renderFilters(contentEl);
     this.statusEl = contentEl.createDiv({ cls: "tasks-task-search-status" });
     this.resultsEl = contentEl.createDiv({ cls: "tasks-task-search-results" });
 
@@ -71,7 +80,7 @@ export class TaskSearchModal extends Modal {
       return;
     }
 
-    this.results = this.index.search(this.inputEl.value);
+    this.results = this.index.search(this.inputEl.value, this.getFilters());
     if (this.selectedIndex >= this.results.length) {
       this.selectedIndex = Math.max(0, this.results.length - 1);
     }
@@ -87,9 +96,16 @@ export class TaskSearchModal extends Modal {
   private renderResults(): void {
     this.resultsEl.empty();
     const query = this.inputEl.value.trim();
+    const filters = this.getFilters();
+    const filteredCount = this.index.getCount(filters);
 
     if (this.index.count === 0) {
       this.statusEl.setText("No tasks found in Markdown files.");
+      return;
+    }
+
+    if (filteredCount === 0) {
+      this.statusEl.setText("No tasks match the active filters.");
       return;
     }
 
@@ -99,7 +115,7 @@ export class TaskSearchModal extends Modal {
     }
 
     this.statusEl.setText(query.length === 0
-      ? `Showing ${this.results.length} of ${this.index.count} tasks`
+      ? `Showing ${this.results.length} of ${filteredCount} tasks`
       : `Showing ${this.results.length} matching tasks`);
 
     for (const [index, result] of this.results.entries()) {
@@ -107,10 +123,8 @@ export class TaskSearchModal extends Modal {
         cls: `tasks-task-search-result${index === this.selectedIndex ? " is-selected" : ""}`,
       });
       row.type = "button";
-      row.addEventListener("mouseenter", () => {
-        this.selectedIndex = index;
-        this.renderResults();
-      });
+      row.title = result.taskText;
+      row.addEventListener("mouseenter", () => this.setSelectedIndex(index));
       row.addEventListener("click", () => {
         void this.openResult(result);
       });
@@ -133,7 +147,65 @@ export class TaskSearchModal extends Modal {
       if (result.tags.length > 0) {
         meta.createEl("span", { text: result.tags.join(" ") });
       }
+      if (result.links.length > 0) {
+        meta.createEl("span", { text: result.links.map((link) => `[[${link}]]`).join(" ") });
+      }
     }
+  }
+
+  private renderFilters(containerEl: HTMLElement): void {
+    const filtersEl = containerEl.createDiv({ cls: "tasks-task-search-filters" });
+
+    const completionLabel = filtersEl.createEl("label", { cls: "tasks-task-search-filter" });
+    completionLabel.createEl("span", { text: "Status" });
+    const completionFilterEl = completionLabel.createEl("select", {
+      attr: { "aria-label": "Task status filter" },
+    });
+    addSelectOption(completionFilterEl, "open", "Open");
+    addSelectOption(completionFilterEl, "completed", "Done");
+    addSelectOption(completionFilterEl, "all", "All");
+    completionFilterEl.value = this.completionFilter;
+    completionFilterEl.addEventListener("change", () => {
+      this.completionFilter = completionFilterEl.value as TaskCompletionFilter;
+      this.selectedIndex = 0;
+      this.updateResults();
+    });
+
+    this.renderCheckboxFilter(filtersEl, "Has tag", (checked) => {
+      this.hasTagFilter = checked;
+    });
+    this.renderCheckboxFilter(filtersEl, "Has link", (checked) => {
+      this.hasLinkFilter = checked;
+    });
+    this.renderCheckboxFilter(filtersEl, "No due date", (checked) => {
+      this.noDueDateFilter = checked;
+    });
+  }
+
+  private renderCheckboxFilter(
+    containerEl: HTMLElement,
+    label: string,
+    onChange: (checked: boolean) => void,
+  ): HTMLInputElement {
+    const filterLabel = containerEl.createEl("label", { cls: "tasks-task-search-check-filter" });
+    const input = filterLabel.createEl("input", { attr: { "aria-label": label } });
+    input.type = "checkbox";
+    input.addEventListener("change", () => {
+      onChange(input.checked);
+      this.selectedIndex = 0;
+      this.updateResults();
+    });
+    filterLabel.createEl("span", { text: label });
+    return input;
+  }
+
+  private getFilters(): TaskSearchFilters {
+    return {
+      completion: this.completionFilter,
+      hasTag: this.hasTagFilter,
+      hasLink: this.hasLinkFilter,
+      noDueDate: this.noDueDateFilter,
+    };
   }
 
   private async handleKeydown(event: KeyboardEvent): Promise<void> {
@@ -165,8 +237,19 @@ export class TaskSearchModal extends Modal {
     }
 
     this.selectedIndex = (this.selectedIndex + delta + this.results.length) % this.results.length;
-    this.renderResults();
+    this.setSelectedIndex(this.selectedIndex);
     this.resultsEl.children[this.selectedIndex]?.scrollIntoView({ block: "nearest" });
+  }
+
+  private setSelectedIndex(index: number): void {
+    if (index < 0 || index >= this.results.length) {
+      return;
+    }
+
+    this.selectedIndex = index;
+    for (const [childIndex, child] of Array.from(this.resultsEl.children).entries()) {
+      child.classList.toggle("is-selected", childIndex === this.selectedIndex);
+    }
   }
 
   private async openResult(result: TaskSearchResult): Promise<void> {
@@ -196,12 +279,24 @@ export class TaskSearchModal extends Modal {
     const line = Math.min(result.line, Math.max(0, editor.lineCount() - 1));
     const lineText = editor.getLine(line);
     const ch = getTaskCursorColumn(lineText);
-    editor.setCursor({ line, ch });
+    editor.setSelection({ line, ch: 0 }, { line, ch: lineText.length });
     editor.scrollIntoView({
       from: { line, ch: 0 },
       to: { line, ch: lineText.length },
     }, true);
+    window.setTimeout(() => {
+      if (view.file?.path === file.path && editor.getSelection() === lineText) {
+        editor.setCursor({ line, ch });
+      }
+    }, 700);
   }
+}
+
+function addSelectOption(selectEl: HTMLSelectElement, value: TaskCompletionFilter, label: string): void {
+  selectEl.createEl("option", {
+    text: label,
+    value,
+  });
 }
 
 function formatStatus(status: string): string {

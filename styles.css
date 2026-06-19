@@ -432,8 +432,8 @@
 }
 
 .modal.tasks-task-search-shell {
-  width: min(780px, calc(100vw - 32px));
-  max-width: min(780px, calc(100vw - 32px));
+  width: min(1040px, calc(100vw - 32px));
+  max-width: min(1040px, calc(100vw - 32px));
   max-height: calc(100vh - 24px);
   max-height: calc(100dvh - 24px);
 }
@@ -451,6 +451,26 @@
   width: 100%;
 }
 
+.tasks-task-search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.tasks-task-search-filter,
+.tasks-task-search-check-filter {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.tasks-task-search-filter select {
+  min-width: 96px;
+}
+
 .tasks-task-search-status {
   min-height: 18px;
   color: var(--text-muted);
@@ -466,15 +486,21 @@
 }
 
 .tasks-task-search-result {
+  appearance: none;
   display: grid;
   gap: 4px;
+  justify-content: stretch;
+  justify-items: stretch;
+  align-items: start;
   width: 100%;
   min-height: 48px;
   padding: 7px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
+  box-shadow: none;
   color: var(--text-normal);
+  font: inherit;
   text-align: left;
 }
 
@@ -486,9 +512,10 @@
 
 .tasks-task-search-result-main {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
+  justify-items: start;
   min-width: 0;
 }
 
@@ -505,10 +532,11 @@
 
 .tasks-task-search-result-text {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
-  font-weight: var(--font-semibold);
+  font-weight: 400;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -519,7 +547,7 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   min-width: 0;
-  padding-left: 34px;
+  padding-left: 46px;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   line-height: 1.3;
