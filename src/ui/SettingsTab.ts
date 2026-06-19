@@ -12,6 +12,8 @@ import type TasksQuickAddPlugin from "../main.ts";
 import {
   COMMAND_PRESET_DATE_MODES,
   DATE_TYPES,
+  DETECTED_SUMMARY_LAYOUTS,
+  MARKDOWN_OUTPUT_LOCATIONS,
   DEFAULT_SETTINGS,
   TASK_INSERT_POSITIONS,
   TASK_INSERT_TARGETS,
@@ -20,6 +22,8 @@ import {
   formatTaskTokenOrder,
   normalizeTaskTokenOrder,
   type CommandPresetDateMode,
+  type DetectedSummaryLayout,
+  type MarkdownOutputLocation,
   type QuickAddCommandPreset,
   type TaskInsertPosition,
   type TaskInsertTarget,
@@ -190,6 +194,57 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           this.plugin.settings.taskTokenOrder = normalizeTaskTokenOrder(value);
           await this.plugin.saveSettings();
         }));
+
+    new Setting(parsingEl)
+      .setName("Completion trigger length")
+      .setDesc("Minimum characters required before completion popups appear for date, priority, and recurrence.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.completionTriggerLength))
+        .setValue(String(this.plugin.settings.completionTriggerLength))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          const clamped = Number.isNaN(parsed)
+            ? DEFAULT_SETTINGS.completionTriggerLength
+            : Math.min(10, Math.max(1, parsed));
+          this.plugin.settings.completionTriggerLength = clamped;
+          text.setValue(String(clamped));
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(parsingEl)
+      .setName("Detected summary layout")
+      .setDesc("Choose how detected metadata is shown in the modal preview.")
+      .addDropdown((dropdown) => {
+        for (const layout of DETECTED_SUMMARY_LAYOUTS) {
+          dropdown.addOption(layout, layout === "chips" ? "Chips" : "Rows");
+        }
+
+        dropdown
+          .setValue(this.plugin.settings.detectedSummaryLayout)
+          .onChange(async (value) => {
+            if (DETECTED_SUMMARY_LAYOUTS.includes(value as DetectedSummaryLayout)) {
+              this.plugin.settings.detectedSummaryLayout = value as DetectedSummaryLayout;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
+
+    new Setting(parsingEl)
+      .setName("Markdown preview location")
+      .setDesc("Choose where to show the generated task Markdown preview.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("result-area", "Result area");
+        dropdown.addOption("edit-section", "Edit section");
+
+        dropdown
+          .setValue(this.plugin.settings.markdownOutputLocation)
+          .onChange(async (value) => {
+            if (MARKDOWN_OUTPUT_LOCATIONS.includes(value as MarkdownOutputLocation)) {
+              this.plugin.settings.markdownOutputLocation = value as MarkdownOutputLocation;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
 
     this.renderCommandPresets(containerEl);
   }

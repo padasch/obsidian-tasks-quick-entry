@@ -53,6 +53,9 @@ export default class TasksQuickAddPlugin extends Plugin {
         taskTokenOrder: this.settings.taskTokenOrder,
       },
       preset?.name ?? "New task",
+      this.settings.completionTriggerLength,
+      this.settings.detectedSummaryLayout,
+      this.settings.markdownOutputLocation,
       async (draft, target) => {
         await this.addParsedTask(draft, target ?? this.getPresetWriteTarget(preset));
       },

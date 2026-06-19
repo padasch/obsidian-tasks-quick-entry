@@ -48,6 +48,8 @@ const PRIORITY_DETAILS: Record<PriorityLevel, Omit<ParsedPriority, "token">> = {
   },
 };
 
+const PRIORITY_WORDS = "lowest|low|normal|medium|high|highest";
+
 export interface PriorityParseResult {
   cleanedInput: string;
   priority: ParsedPriority | null;
@@ -61,14 +63,25 @@ export function priorityFromLevel(level: PriorityLevel): ParsedPriority {
 export function extractPriority(input: string): PriorityParseResult {
   const matches: PriorityParseMatch[] = [];
 
-  const cleanedInput = input.replace(/(^|\s)(prio\s+(lowest|normal|medium|highest|high|low))(?=$|\s)/gi, (match, leading: string, found: string, level: string, offset: number) => {
+  const priorityMatchPattern = new RegExp(
+    `(^|\\s)(?:prio\\s+(${PRIORITY_WORDS})|(${PRIORITY_WORDS}))(?:$|(?=\\s))`,
+    "gi",
+  );
+  const cleanedInput = input.replace(priorityMatchPattern, (match, leading: string, prioLevel: string | undefined, bareLevel: string | undefined, offset: number) => {
+    const rawLevel = bareLevel ?? prioLevel;
+    if (rawLevel === undefined) {
+      return match;
+    }
+
+    const matchedLevel = rawLevel.toLowerCase() as PriorityLevel;
     const start = offset + leading.length;
     matches.push({
-      ...priorityFromLevel(level.toLowerCase() as PriorityLevel),
-      matchedText: found,
+      ...priorityFromLevel(matchedLevel),
+      matchedText: rawLevel,
       start,
-      end: start + found.length,
+      end: start + rawLevel.length,
     });
+
     return leading;
   }).replace(/\s+/g, " ").trim();
 

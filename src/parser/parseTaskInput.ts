@@ -25,10 +25,14 @@ export interface ParsedTaskInput {
   rawInput: string;
   title: string;
   titleWithoutTags: string;
+  description?: string;
   date: ParsedTaskDate | null;
   dates: ParsedTaskDates;
   dateTexts: ParsedTaskDateTexts;
   recurrence: ParsedRecurrence | null;
+  dateMatches: DateParseResult[];
+  recurrenceMatches: ParsedRecurrence[];
+  priorityMatches: PriorityParseMatch[];
   priority: ParsedPriority | null;
   conflicts: ParsedMetadataConflict[];
   links: string[];
@@ -106,10 +110,14 @@ export function parseTaskInput(input: string, options: ParseTaskInputOptions = {
   return {
     rawInput,
     title,
+    description: undefined,
     titleWithoutTags: removeTags(title),
     date,
     dates,
     dateTexts,
+    dateMatches: dateResult.matches,
+    recurrenceMatches: recurrenceResult.matches,
+    priorityMatches: priorityResult.matches,
     recurrence: recurrenceMatch,
     priority: priorityResult.priority,
     conflicts: [

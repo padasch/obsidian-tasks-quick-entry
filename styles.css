@@ -45,6 +45,52 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.tasks-quick-add-parse-summary {
+  margin-bottom: 8px;
+}
+
+.tasks-quick-add-summary-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: start;
+  padding: 0;
+}
+
+.tasks-quick-add-summary-command {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.tasks-quick-add-summary-detected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  min-width: 0;
+}
+
+.tasks-quick-add-summary-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tasks-quick-add-summary-value {
+  display: inline-flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tasks-quick-add-summary-value > span {
+  color: var(--text-normal);
+}
+
 .tasks-quick-add-result-title,
 .tasks-quick-add-detected,
 .tasks-quick-add-output {
@@ -84,11 +130,69 @@
 
 .tasks-quick-add-output code {
   display: block;
-  white-space: normal;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--text-normal);
   font-size: var(--font-ui-smaller);
   line-height: 1.35;
+}
+
+.tasks-quick-add-output-code {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.35;
+}
+
+.tasks-quick-add-edit-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.tasks-quick-add-edit-row {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.tasks-quick-add-edit-label,
+.tasks-quick-add-edit-row > .tasks-quick-add-edit-label,
+.tasks-quick-add-edit-row > label {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-transform: none;
+}
+
+.tasks-quick-add-edit-cell {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.tasks-quick-add-priority {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, max-content));
+  gap: 6px;
+}
+
+.tasks-quick-add-date-grid {
+  align-self: stretch;
+}
+
+.tasks-quick-add-date-row {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.tasks-quick-add-date-row input {
+  width: 100%;
 }
 
 .tasks-quick-add-muted,
@@ -169,24 +273,6 @@
   gap: 14px;
 }
 
-.tasks-quick-add-priority {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.tasks-quick-add-priority legend {
-  grid-column: 1 / -1;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-}
-
 .tasks-quick-add-radio {
   display: flex;
   gap: 6px;
@@ -201,16 +287,7 @@
   overflow-wrap: anywhere;
 }
 
-.tasks-quick-add-date-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
 .tasks-quick-add-recurrence-row {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 8px;
   align-items: center;
 }
 
@@ -224,25 +301,20 @@
   width: 100%;
 }
 
-.tasks-quick-add-date-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tasks-quick-add-date-row label {
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-}
-
-.tasks-quick-add-date-row input {
-  width: 100%;
-}
-
 .tasks-quick-add-edit-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.tasks-quick-add-detected-rows {
+  display: grid;
+  gap: 4px;
+}
+
+.tasks-quick-add-detected-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px;
 }
 
 .tasks-quick-add-suggestions {

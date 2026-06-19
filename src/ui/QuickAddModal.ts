@@ -13,18 +13,23 @@ import {
   type PriorityLevel,
 } from "../parser/priorityParser.ts";
 import { parseRecurrenceRuleText } from "../parser/recurrenceParser.ts";
-import { DATE_TYPES, type DateType } from "../settings.ts";
+import {
+  DATE_TYPES,
+  type DateType,
+  type DetectedSummaryLayout,
+  type MarkdownOutputLocation,
+} from "../settings.ts";
 import type { TaskWriteTarget } from "../writer/taskWriter.ts";
 
 interface CompletionTrigger {
-  kind: "tag" | "note" | "priority" | "date";
+  kind: "tag" | "note" | "priority" | "date" | "recurrence";
   start: number;
   end: number;
   query: string;
 }
 
 interface CompletionSuggestion {
-  kind: "tag" | "note" | "priority" | "date";
+  kind: "tag" | "note" | "priority" | "date" | "recurrence";
   label: string;
   detail: string;
   insertText: string;
@@ -55,6 +60,20 @@ const DATE_PLACEHOLDERS: Record<DateType, string> = {
   scheduled: "yyyy-mm-dd",
   start: "yyyy-mm-dd",
 };
+
+interface ParsedSummaryTokens {
+  dateMatches: Array<{ matchedText: string }>;
+  recurrenceMatches: Array<{ matchedText: string }>;
+  priorityMatches: Array<{ matchedText: string }>;
+  links: string[];
+  tags: string[];
+}
+
+interface SummarySection {
+  title: string;
+  details: Array<{ label: string; value: string }>;
+  parsedTokens: ParsedSummaryTokens;
+}
 
 const WEEKDAY_COMPLETIONS = [
   "Monday",
@@ -95,24 +114,57 @@ const DATE_ALIAS_COMPLETIONS: Record<string, string> = {
   nw: "next week",
 };
 
+const RECURRENCE_COMPLETION_PHRASES = [
+  "every day",
+  "every weekday",
+  "every week",
+  "every 2 weeks",
+  "every month",
+  "every 3 months",
+  "every year",
+  "every monday",
+  "every tuesday",
+  "every wednesday",
+  "every thursday",
+  "every friday",
+  "every saturday",
+  "every sunday",
+  "every other monday",
+  "every other friday",
+  "every 2 weeks on friday",
+  "every month on the second monday",
+  "every last friday of the month",
+  "every week on monday",
+  "every week on friday",
+];
+
 const RECURRENCE_PLACEHOLDER = "every week on Monday";
 const SUGGESTION_PAGE_SIZE = 5;
 
 export class QuickAddModal extends Modal {
   private readonly parseOptions: ParseTaskInputOptions;
   private readonly formatOptions: FormatTasksMarkdownOptions;
+  private readonly completionTriggerLength: number;
+  private readonly detectedSummaryLayout: DetectedSummaryLayout;
+  private readonly markdownOutputLocation: MarkdownOutputLocation;
   private readonly onSubmitTask: (draft: ParsedTaskInput, target?: TaskWriteTarget | null) => Promise<void>;
+  private summaryHeaderEl!: HTMLElement;
   private inputEl!: HTMLInputElement;
   private submitButtonEl!: HTMLButtonElement;
   private parsedResultEl!: HTMLElement;
+  private parsedOutputEl!: HTMLElement;
   private linkedTargetEl!: HTMLElement;
   private suggestionsEl!: HTMLElement;
   private priorityInputs: HTMLInputElement[] = [];
   private recurrenceInputEl!: HTMLInputElement;
+  private descriptionInputEl!: HTMLInputElement;
+  private editOutputEl!: HTMLElement;
   private dateInputs: Partial<Record<DateType, HTMLInputElement>> = {};
   private manualPriorityLevel: PriorityLevel | null = null;
   private manualRecurrenceRule = "";
   private manualRecurrenceTouched = false;
+  private manualDescription = "";
+  private manualDescriptionTouched = false;
   private manualDates: Record<DateType, string> = { ...EMPTY_DATES };
   private manualDateTouched: Record<DateType, boolean> = {
     due: false,
@@ -131,11 +183,17 @@ export class QuickAddModal extends Modal {
     parseOptions: ParseTaskInputOptions,
     formatOptions: FormatTasksMarkdownOptions,
     private readonly modalTitle: string,
+    completionTriggerLength: number,
+    detectedSummaryLayout: DetectedSummaryLayout,
+    markdownOutputLocation: MarkdownOutputLocation,
     onSubmitTask: (draft: ParsedTaskInput, target?: TaskWriteTarget | null) => Promise<void>,
   ) {
     super(app);
     this.parseOptions = parseOptions;
     this.formatOptions = formatOptions;
+    this.completionTriggerLength = completionTriggerLength;
+    this.detectedSummaryLayout = detectedSummaryLayout;
+    this.markdownOutputLocation = markdownOutputLocation;
     this.onSubmitTask = onSubmitTask;
   }
 
@@ -146,6 +204,8 @@ export class QuickAddModal extends Modal {
     contentEl.addClass("tasks-quick-add-modal");
     contentEl.createEl("h2", { text: this.modalTitle });
 
+    this.summaryHeaderEl = contentEl.createDiv({ cls: "tasks-quick-add-parse-summary" });
+
     const form = contentEl.createEl("form", { cls: "tasks-quick-add-form" });
     const inputWrap = form.createDiv({ cls: "tasks-quick-add-input-wrap" });
     this.inputEl = inputWrap.createEl("input", {
@@ -154,6 +214,7 @@ export class QuickAddModal extends Modal {
         "aria-label": "Task",
         "autocomplete": "off",
         "spellcheck": "true",
+        placeholder: `${this.modalTitle} - Type a task to see detected date, recurrence, priority, files, and tags...`,
       },
     });
     this.inputEl.type = "text";
@@ -169,6 +230,7 @@ export class QuickAddModal extends Modal {
     this.submitButtonEl.type = "submit";
 
     this.parsedResultEl = contentEl.createDiv({ cls: "tasks-quick-add-result" });
+    this.parsedOutputEl = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-output-container" });
     this.linkedTargetEl = contentEl.createDiv({ cls: "tasks-quick-add-linked-target" });
     this.renderEditingDetails(contentEl);
 
@@ -202,13 +264,16 @@ export class QuickAddModal extends Modal {
     details.createEl("summary", { text: "Edit Task" });
 
     const body = details.createDiv({ cls: "tasks-quick-add-details-body" });
+    const tableGrid = body.createDiv({ cls: "tasks-quick-add-edit-grid" });
 
-    const priorityField = body.createEl("fieldset", { cls: "tasks-quick-add-priority" });
-    priorityField.createEl("legend", { text: "Priority" });
+    const priorityField = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row" });
+    priorityField.createEl("div", { cls: "tasks-quick-add-edit-label", text: "Priority" });
+    const priorityCell = priorityField.createDiv({ cls: "tasks-quick-add-edit-cell" });
+    priorityCell.createDiv({ cls: "tasks-quick-add-priority" });
 
     for (const level of PRIORITY_LEVELS) {
       const priority = priorityFromLevel(level);
-      const label = priorityField.createEl("label", { cls: "tasks-quick-add-radio" });
+      const label = priorityCell.createEl("label", { cls: "tasks-quick-add-radio" });
       const radio = label.createEl("input");
       radio.type = "radio";
       radio.name = "tasks-quick-add-priority";
@@ -224,12 +289,13 @@ export class QuickAddModal extends Modal {
       });
     }
 
-    const recurrenceRow = body.createDiv({ cls: "tasks-quick-add-recurrence-row" });
+    const recurrenceRow = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row" });
     recurrenceRow.createEl("label", {
       text: "Recurs",
       attr: { for: "tasks-quick-add-recurrence" },
     });
-    this.recurrenceInputEl = recurrenceRow.createEl("input", {
+    const recurrenceInputs = recurrenceRow.createDiv({ cls: "tasks-quick-add-edit-cell" });
+    this.recurrenceInputEl = recurrenceInputs.createEl("input", {
       attr: {
         id: "tasks-quick-add-recurrence",
         "aria-label": "Recurrence rule",
@@ -243,10 +309,44 @@ export class QuickAddModal extends Modal {
       this.updatePreview();
     });
 
-    const datesSection = body.createDiv({ cls: "tasks-quick-add-date-grid" });
+    const recurrenceClear = recurrenceInputs.createEl("button", { text: "Clear" });
+    recurrenceClear.type = "button";
+    recurrenceClear.addEventListener("click", () => {
+      this.manualRecurrenceTouched = false;
+      this.manualRecurrenceRule = "";
+      this.syncEditingControls(null);
+      this.updatePreview();
+    });
+
+    const descriptionRow = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row" });
+    descriptionRow.createEl("label", {
+      text: "Description",
+      attr: { for: "tasks-quick-add-description" },
+    });
+    const descriptionCell = descriptionRow.createDiv({ cls: "tasks-quick-add-edit-cell" });
+    this.descriptionInputEl = descriptionCell.createEl("input", {
+      attr: {
+        id: "tasks-quick-add-description",
+        "aria-label": "Description",
+        placeholder: "Optional task description",
+      },
+    });
+    this.descriptionInputEl.type = "text";
+    this.descriptionInputEl.addEventListener("input", () => {
+      this.manualDescription = this.descriptionInputEl.value;
+      this.manualDescriptionTouched = true;
+      this.updatePreview();
+    });
+
+    const datesSection = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row tasks-quick-add-date-grid" });
+    datesSection.createEl("div", {
+      cls: "tasks-quick-add-edit-row-label",
+      text: "Dates",
+    });
+    const datesCell = datesSection.createDiv({ cls: "tasks-quick-add-edit-cell" });
 
     for (const dateType of DATE_TYPES) {
-      const row = datesSection.createDiv({ cls: "tasks-quick-add-date-row" });
+      const row = datesCell.createDiv({ cls: "tasks-quick-add-date-row" });
       row.createEl("label", {
         text: DATE_LABELS[dateType],
         attr: { for: `tasks-quick-add-${dateType}-date` },
@@ -274,6 +374,8 @@ export class QuickAddModal extends Modal {
       this.manualPriorityLevel = null;
       this.manualRecurrenceRule = "";
       this.manualRecurrenceTouched = false;
+      this.manualDescription = "";
+      this.manualDescriptionTouched = false;
       this.manualDates = { ...EMPTY_DATES };
       this.manualDateTouched = {
         due: false,
@@ -282,6 +384,8 @@ export class QuickAddModal extends Modal {
       };
       this.updatePreview();
     });
+
+    this.editOutputEl = body.createDiv({ cls: "tasks-quick-add-edit-output" });
   }
 
   private async submitDraft(): Promise<void> {
@@ -305,13 +409,18 @@ export class QuickAddModal extends Modal {
 
   private updatePreview(): void {
     this.parsedResultEl.empty();
+    this.parsedOutputEl = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-output-container" });
 
     if (this.inputEl.value.trim().length === 0) {
-      this.parsedResultEl.createDiv({
+      this.summaryHeaderEl.empty();
+      this.summaryHeaderEl.appendText(`${this.modalTitle} - waiting for input`);
+
+      this.parsedOutputEl.createDiv({
         cls: "tasks-quick-add-empty",
         text: "Type a task to see detected text, dates, recurrence, priority, files, and tags.",
       });
       this.syncEditingControls(null);
+      this.editOutputEl.empty();
       this.renderLinkedTargetControl(null);
       return;
     }
@@ -319,66 +428,189 @@ export class QuickAddModal extends Modal {
     try {
       const parsed = parseTaskInput(this.inputEl.value, this.parseOptions);
       const draft = this.applyManualEdits(parsed);
+      this.renderSummaryHeader(draft, this.inputEl.value);
       this.syncEditingControls(draft);
       this.renderLinkedTargetControl(draft);
       this.renderParsedResult(draft, this.removeLinkedTargetFromDraft(draft, this.getTaskWriteTarget()));
     } catch (error) {
-      this.parsedResultEl.createDiv({
+      this.renderSummaryError(this.inputEl.value);
+
+      this.parsedOutputEl.createDiv({
         cls: "tasks-quick-add-error",
         text: error instanceof Error ? error.message : "Could not parse task.",
       });
       this.renderLinkedTargetControl(null);
+      this.editOutputEl.empty();
     }
   }
 
   private renderParsedResult(draft: ParsedTaskInput, outputDraft: ParsedTaskInput = draft): void {
-    this.renderMetadataConflicts(this.parsedResultEl, draft.conflicts);
+    const outputDraftText = formatTasksMarkdown(outputDraft, this.formatOptions);
+    this.renderMetadataConflicts(this.parsedOutputEl, draft.conflicts);
 
-    const titleRow = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-result-title" });
+    const titleRow = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-result-title" });
     titleRow.createEl("span", { cls: "tasks-quick-add-label", text: "Text" });
     titleRow.createEl("strong", { text: outputDraft.title });
 
-    const detected = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-detected" });
+    const detected = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-detected" });
     detected.createEl("span", { cls: "tasks-quick-add-label", text: "Detected" });
-    const chipWrap = detected.createDiv({ cls: "tasks-quick-add-chips" });
 
-    let chipCount = 0;
-    for (const dateType of DATE_TYPES) {
-      const date = draft.dates[dateType];
-      if (date) {
-        const dateText = draft.dateTexts[dateType];
-        this.renderChip(chipWrap, `${DATE_LABELS[dateType]}: ${formatDetectedDateText(dateText, date)}`);
-        chipCount += 1;
+    if (this.detectedSummaryLayout === "lines") {
+      this.renderDetectedRows(detected, draft);
+    } else {
+      const chipWrap = detected.createDiv({ cls: "tasks-quick-add-chips" });
+      this.renderDetectedChips(chipWrap, draft);
+    }
+
+    const output = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-output" });
+    output.createEl("span", { cls: "tasks-quick-add-label", text: "Markdown" });
+    output.createEl("code", { text: outputDraftText });
+
+    this.editOutputEl.empty();
+    if (this.markdownOutputLocation === "edit-section") {
+      this.editOutputEl.createEl("small", {
+        cls: "tasks-quick-add-label",
+        text: "Markdown",
+      });
+      this.editOutputEl.createEl("code", { text: outputDraftText, cls: "tasks-quick-add-output-code" });
+      output.hide();
+    }
+  }
+
+  private renderSummaryHeader(draft: ParsedTaskInput, rawInput: string): void {
+    const sections = buildSummarySections(draft, rawInput);
+    this.summaryHeaderEl.empty();
+
+    const headerRow = this.summaryHeaderEl.createDiv({ cls: "tasks-quick-add-summary-header" });
+    const commandCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-command" });
+    const detectedCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-detected" });
+    const displayTitle = `${this.modalTitle} · ${sections.title}`;
+    commandCell.appendText(`${this.modalTitle} · `);
+    renderHighlightedInput(commandCell, sections.title, displayTitle, getParsedTokenRanges(sections.title, sections.parsedTokens));
+
+    if (sections.details.length === 0) {
+      detectedCell.createEl("span", { cls: "tasks-quick-add-muted", text: "No detected metadata" });
+      return;
+    }
+
+    const list = detectedCell.createDiv({ cls: "tasks-quick-add-summary-values" });
+    for (const detail of sections.details) {
+      const line = list.createDiv({ cls: "tasks-quick-add-summary-value" });
+      line.createEl("strong", { text: `${detail.label}: ` });
+      if (detail.value.length > 0) {
+        line.createEl("span", { text: detail.value });
+      } else {
+        line.createEl("span", { cls: "tasks-quick-add-muted", text: "—" });
       }
+    }
+  }
+
+  private renderSummaryError(rawInput: string): void {
+    this.summaryHeaderEl.empty();
+    const headerRow = this.summaryHeaderEl.createDiv({ cls: "tasks-quick-add-summary-header" });
+    const commandCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-command" });
+    const detectedCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-detected" });
+
+    commandCell.createEl("span", {
+      text: `${this.modalTitle} · ${rawInput}`,
+      attr: { title: this.modalTitle },
+    });
+    detectedCell.createEl("span", {
+      cls: "tasks-quick-add-label",
+      text: "Could not parse input yet",
+    });
+  }
+
+  private renderDetectedRows(containerEl: HTMLElement, draft: ParsedTaskInput): void {
+    const rowGroup = containerEl.createDiv({ cls: "tasks-quick-add-detected-rows" });
+    const rows: Array<{ key: string; value: string }> = [];
+
+    if (draft.dates.due) {
+      rows.push({
+        key: "Due",
+        value: formatDetectedDateText(draft.dateTexts.due, draft.dates.due),
+      });
     }
 
     if (draft.recurrence !== null) {
-      this.renderChip(chipWrap, `Recurs: ${draft.recurrence.rule}`);
+      rows.push({ key: "Recurrence", value: draft.recurrence.rule });
+    }
+
+    if (draft.priority !== null) {
+      rows.push({ key: "Priority", value: `${draft.priority.label}${draft.priority.marker ? ` ${draft.priority.marker}` : ""}` });
+    }
+
+    for (const link of draft.links) {
+      rows.push({ key: "File", value: link });
+    }
+
+    for (const tag of draft.tags) {
+      rows.push({ key: "Tag", value: tag });
+    }
+
+    for (const dateType of ["scheduled", "start"] as DateType[]) {
+      const date = draft.dates[dateType];
+      if (date) {
+        rows.push({
+          key: `Date (${DATE_LABELS[dateType]})`,
+          value: formatDetectedDateText(draft.dateTexts[dateType], date),
+        });
+      }
+    }
+
+    if (rows.length === 0) {
+      rowGroup.createEl("span", { cls: "tasks-quick-add-muted", text: "No metadata detected" });
+      return;
+    }
+
+    for (const row of rows) {
+      const rowEl = rowGroup.createDiv({ cls: "tasks-quick-add-detected-row" });
+      rowEl.createEl("span", { cls: "tasks-quick-add-label", text: row.key });
+      rowEl.createEl("span", { text: row.value });
+    }
+  }
+
+  private renderDetectedChips(containerEl: HTMLElement, draft: ParsedTaskInput): void {
+    let chipCount = 0;
+
+    if (draft.dates.due) {
+      this.renderChip(containerEl, `Due: ${formatDetectedDateText(draft.dateTexts.due, draft.dates.due)}`);
+      chipCount += 1;
+    }
+
+    if (draft.recurrence !== null) {
+      this.renderChip(containerEl, `Recurs: ${draft.recurrence.rule}`);
       chipCount += 1;
     }
 
     if (draft.priority !== null) {
-      this.renderChip(chipWrap, `Priority: ${draft.priority.label}${draft.priority.marker ? ` ${draft.priority.marker}` : ""}`);
+      this.renderChip(containerEl, `Priority: ${draft.priority.label}${draft.priority.marker ? ` ${draft.priority.marker}` : ""}`);
       chipCount += 1;
     }
 
     for (const link of draft.links) {
-      this.renderChip(chipWrap, `File: ${link}`);
+      this.renderChip(containerEl, `File: ${link}`);
       chipCount += 1;
     }
 
     for (const tag of draft.tags) {
-      this.renderChip(chipWrap, tag);
+      this.renderChip(containerEl, tag);
+      chipCount += 1;
+    }
+
+    if (draft.dates.scheduled) {
+      this.renderChip(containerEl, `Scheduled: ${formatDetectedDateText(draft.dateTexts.scheduled, draft.dates.scheduled)}`);
+      chipCount += 1;
+    }
+
+    if (draft.dates.start) {
+      this.renderChip(containerEl, `Start: ${formatDetectedDateText(draft.dateTexts.start, draft.dates.start)}`);
       chipCount += 1;
     }
 
     if (chipCount === 0) {
-      chipWrap.createEl("span", { cls: "tasks-quick-add-muted", text: "No metadata detected" });
+      containerEl.createEl("span", { cls: "tasks-quick-add-muted", text: "No metadata detected" });
     }
-
-    const output = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-output" });
-    output.createEl("span", { cls: "tasks-quick-add-label", text: "Markdown" });
-    output.createEl("code", { text: formatTasksMarkdown(outputDraft, this.formatOptions) });
   }
 
   private renderChip(containerEl: HTMLElement, text: string): void {
@@ -669,6 +901,7 @@ export class QuickAddModal extends Modal {
       dateTexts,
       recurrence,
       priority: this.manualPriorityLevel === null ? parsed.priority : priorityFromLevel(this.manualPriorityLevel),
+      description: this.manualDescriptionTouched ? this.manualDescription : parsed.description,
     };
   }
 
@@ -698,6 +931,10 @@ export class QuickAddModal extends Modal {
 
     if (this.recurrenceInputEl && !this.manualRecurrenceTouched) {
       this.recurrenceInputEl.value = draft?.recurrence?.rule ?? "";
+    }
+
+    if (this.descriptionInputEl) {
+      this.descriptionInputEl.value = this.manualDescriptionTouched ? this.manualDescription : (draft?.description ?? "");
     }
 
     for (const dateType of DATE_TYPES) {
@@ -808,14 +1045,31 @@ export class QuickAddModal extends Modal {
       };
     }
 
-    const priorityMatch = beforeCursor.match(/(^|\s)(prio(?:\s+([a-z]*))?)$/i);
+    const priorityMatch = beforeCursor.match(/(^|\s)(prio\s+)?([a-z]+)?$/i);
     if (priorityMatch !== null) {
-      return {
-        kind: "priority",
-        start: cursor - priorityMatch[2].length,
-        end: cursor,
-        query: (priorityMatch[3] ?? "").toLowerCase(),
-      };
+      const isPrefixed = Boolean(priorityMatch[2]);
+      const query = (priorityMatch[3] ?? "").toLowerCase();
+      if ((isPrefixed && query.length >= this.completionTriggerLength) || this.isPriorityBareMatch(query)) {
+        return {
+          kind: "priority",
+          start: cursor - query.length,
+          end: cursor,
+          query,
+        };
+      }
+    }
+
+    const recurrenceMatch = beforeCursor.match(/(^|\s)(every(?:\s+[a-z0-9]+){0,4})$/i);
+    if (recurrenceMatch !== null) {
+      const query = recurrenceMatch[2].trim().toLowerCase();
+      if (query.length >= this.completionTriggerLength) {
+        return {
+          kind: "recurrence",
+          start: cursor - query.length,
+          end: cursor,
+          query,
+        };
+      }
     }
 
     const dateTrigger = this.findDateCompletionTrigger(beforeCursor, cursor);
@@ -836,6 +1090,10 @@ export class QuickAddModal extends Modal {
     return null;
   }
 
+  private isPriorityBareMatch(query: string): boolean {
+    return isPriorityTriggerMatch(query) && query.length >= this.completionTriggerLength;
+  }
+
   private findDateCompletionTrigger(beforeCursor: string, cursor: number): CompletionTrigger | null {
     const phraseMatch = beforeCursor.match(/(^|\s)([a-z0-9]+(?:\s+[a-z0-9]+){0,3})$/i);
     if (phraseMatch === null) {
@@ -845,7 +1103,7 @@ export class QuickAddModal extends Modal {
     const words = phraseMatch[2].trim().split(/\s+/);
     for (let wordCount = Math.min(words.length, 4); wordCount > 0; wordCount -= 1) {
       const query = words.slice(-wordCount).join(" ").toLowerCase();
-      if (query.length < 2) {
+      if (query.length < this.completionTriggerLength) {
         continue;
       }
 
@@ -872,7 +1130,21 @@ export class QuickAddModal extends Modal {
         return this.getDateSuggestions(trigger.query);
       case "note":
         return this.getNoteSuggestions(trigger.query);
+      case "recurrence":
+        return this.getRecurrenceSuggestions(trigger.query);
+      default:
+        return [];
     }
+  }
+
+  private getRecurrenceSuggestions(query: string): CompletionSuggestion[] {
+    const phrases = getRecurrenceCompletionPhrases(query);
+    return phrases.map((phrase) => ({
+      kind: "recurrence",
+      label: phrase,
+      detail: "Recurrence",
+      insertText: `${phrase} `,
+    }));
   }
 
   private getPrioritySuggestions(query: string): CompletionSuggestion[] {
@@ -1206,11 +1478,18 @@ function getDateCompletionPhrases(query: string): string[] {
   const normalized = query.trim().toLowerCase();
   const relativePhrases = getRelativeDateCompletionPhrases(normalized);
   const aliasPhrases = DATE_ALIAS_COMPLETIONS[normalized] === undefined ? [] : [DATE_ALIAS_COMPLETIONS[normalized]];
-  const staticPhrases = normalized.length < 3
-    ? []
-    : fuzzyRank(DATE_COMPLETION_PHRASES, normalized, (phrase) => phrase, 8);
+  const staticPhrases = fuzzyRank(DATE_COMPLETION_PHRASES, normalized, (phrase) => phrase, 8);
   const allPhrases = [...relativePhrases, ...aliasPhrases, ...staticPhrases];
   return Array.from(new Set(allPhrases)).slice(0, 8);
+}
+
+function getRecurrenceCompletionPhrases(query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  return fuzzyRank(RECURRENCE_COMPLETION_PHRASES, normalized, (phrase) => phrase, 8);
 }
 
 function getRelativeDateCompletionPhrases(query: string): string[] {
@@ -1243,6 +1522,202 @@ function getRelativeDateCompletionPhrases(query: string): string[] {
 
 function getRelativeUnits(query: string): string[] {
   return fuzzyRank(["days", "weeks", "months", "years"], query, (unit) => unit, 4);
+}
+
+function buildSummarySections(draft: ParsedTaskInput, rawInput: string): SummarySection {
+  const title = rawInput.length > 0 ? rawInput : draft.title;
+  const details: Array<{ label: string; value: string }> = [];
+
+  const dueDate = draft.dates.due;
+
+  if (dueDate) {
+    details.push({ label: "Due", value: formatDetectedDateText(draft.dateTexts.due, dueDate) });
+  }
+
+  if (draft.recurrence !== null) {
+    details.push({ label: "Recurrence", value: draft.recurrence.rule });
+  }
+
+  if (draft.priority !== null) {
+    details.push({
+      label: "Priority",
+      value: `${draft.priority.label}${draft.priority.marker ? ` ${draft.priority.marker}` : ""}`,
+    });
+  }
+
+  for (const link of draft.links) {
+    details.push({ label: "File", value: link });
+  }
+
+  for (const tag of draft.tags) {
+    details.push({ label: "Tag", value: tag });
+  }
+
+  if (draft.dates.scheduled) {
+    details.push({ label: DATE_LABELS.scheduled, value: formatDetectedDateText(draft.dateTexts.scheduled, draft.dates.scheduled) });
+  }
+
+  if (draft.dates.start) {
+    details.push({ label: DATE_LABELS.start, value: formatDetectedDateText(draft.dateTexts.start, draft.dates.start) });
+  }
+
+  const parsedTokens = {
+    dateMatches: draft.dateMatches,
+    recurrenceMatches: draft.recurrenceMatches,
+    priorityMatches: draft.priorityMatches,
+    links: draft.links,
+    tags: draft.tags,
+  };
+
+  return { title, details, parsedTokens };
+}
+
+function getParsedTokenRanges(input: string, draftTokens: {
+  dateMatches: Array<{ matchedText: string }>;
+  recurrenceMatches: Array<{ matchedText: string }>;
+  priorityMatches: Array<{ matchedText: string }>;
+  links: string[];
+  tags: string[];
+}): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const addRange = (range: { start: number; end: number } | null): void => {
+    if (range === null) {
+      return;
+    }
+
+    if (ranges.some((existing) => rangesOverlap(existing, range))) {
+      return;
+    }
+
+    ranges.push(range);
+  };
+
+  for (const dateMatch of draftTokens.dateMatches) {
+    addRange(findNonOverlappingTokenMatch(input, dateMatch.matchedText, ranges));
+  }
+
+  for (const recurrenceMatch of draftTokens.recurrenceMatches) {
+    addRange(findNonOverlappingTokenMatch(input, recurrenceMatch.matchedText, ranges));
+  }
+
+  for (const priorityMatch of draftTokens.priorityMatches) {
+    addRange(findNonOverlappingTokenMatch(input, priorityMatch.matchedText, ranges));
+  }
+
+  for (const link of parseLinkTargets(draftTokens.links)) {
+    const linkRanges = findRawLinkMatches(input, link);
+    for (const range of linkRanges) {
+      addRange(range);
+    }
+  }
+
+  const uniqueTags = Array.from(new Set(draftTokens.tags));
+  for (const tag of uniqueTags) {
+    addRange(findNonOverlappingTokenMatch(input, tag, ranges));
+  }
+
+  return ranges.sort((a, b) => a.start - b.start);
+}
+
+function findRawLinkMatches(input: string, linkText: string): Array<{ start: number; end: number }> {
+  const matches: Array<{ start: number; end: number }> = [];
+  const normalizedLink = normalizeLinkText(linkText);
+  for (const match of input.matchAll(/\[\[([^\]\n]+)\]\]/g)) {
+    const target = normalizeLinkText(match[1] ?? "");
+    if (target.toLowerCase() !== normalizedLink.toLowerCase()) {
+      continue;
+    }
+
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    matches.push({ start, end });
+  }
+
+  return matches;
+}
+
+function parseLinkTargets(links: string[]): string[] {
+  return links.map((link) => link.split("|")[0]?.trim() ?? "").filter((link) => link.length > 0);
+}
+
+function normalizeLinkText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function findNonOverlappingTokenMatch(
+  input: string,
+  token: string,
+  ranges: Array<{ start: number; end: number }>,
+): { start: number; end: number } | null {
+  const normalizedToken = token.trim();
+  if (normalizedToken.length === 0) {
+    return null;
+  }
+
+  const lowerInput = input.toLowerCase();
+  const lowerToken = normalizedToken.toLowerCase();
+  let fromIndex = 0;
+
+  while (fromIndex < lowerInput.length) {
+    const index = lowerInput.indexOf(lowerToken, fromIndex);
+    if (index === -1) {
+      return null;
+    }
+
+    const candidate = { start: index, end: index + token.length };
+    if (!ranges.some((existing) => rangesOverlap(existing, candidate))) {
+      return candidate;
+    }
+
+    fromIndex = index + 1;
+  }
+
+  return null;
+}
+
+function rangesOverlap(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+  return Math.max(a.start, b.start) < Math.min(a.end, b.end);
+}
+
+function renderHighlightedInput(
+  container: HTMLElement,
+  rawInput: string,
+  fallbackText: string,
+  highlights: Array<{ start: number; end: number }>,
+): void {
+  const source = rawInput.length > 0 ? rawInput : fallbackText;
+  if (highlights.length === 0) {
+    container.appendText(source);
+    return;
+  }
+
+  const ranges = highlights
+    .filter((range) => range.start >= 0 && range.end >= range.start)
+    .sort((a, b) => a.start - b.start);
+  let position = 0;
+
+  for (const range of ranges) {
+    const safeStart = Math.max(0, Math.min(range.start, source.length));
+    const safeEnd = Math.max(0, Math.min(range.end, source.length));
+
+    if (safeStart > position) {
+      container.appendText(source.slice(position, safeStart));
+    }
+
+    if (safeStart < safeEnd) {
+      const strong = container.createEl("strong");
+      strong.appendText(source.slice(safeStart, safeEnd));
+      position = safeEnd;
+    }
+  }
+
+  if (position < source.length) {
+    container.appendText(source.slice(position));
+  }
+}
+
+function isPriorityTriggerMatch(query: string): boolean {
+  return query.length > 0 && PRIORITY_LEVELS.includes(query as PriorityLevel);
 }
 
 function formatDetectedDateText(dateText: string | undefined, date: string): string {

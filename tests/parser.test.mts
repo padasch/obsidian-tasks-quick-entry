@@ -213,6 +213,38 @@ test("supports explicit task token order", () => {
   );
 });
 
+test("formats description as nested task package line", () => {
+  const parsed = parseTaskInput("Write notes tomorrow", {
+    referenceDate,
+  });
+  const markdown = formatTasksMarkdown({ ...parsed, description: "Draft first section" });
+  assert.equal(
+    markdown,
+    "- [ ] Write notes 📅 2026-06-16\n    - Draft first section",
+  );
+});
+
+test("collapses multiline description to a single line", () => {
+  const parsed = parseTaskInput("Write notes tomorrow", {
+    referenceDate,
+  });
+  const markdown = formatTasksMarkdown({
+    ...parsed,
+    description: "First line\n   with tabs\tand   extra   spaces",
+  });
+  assert.equal(
+    markdown,
+    "- [ ] Write notes 📅 2026-06-16\n    - First line with tabs and extra spaces",
+  );
+});
+
+test("keeps task line unchanged when no description is provided", () => {
+  const parsed = parseTaskInput("Write notes tomorrow", {
+    referenceDate,
+  });
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Write notes 📅 2026-06-16");
+});
+
 test("keeps detected date wording and file links for modal display", () => {
   const parsed = parseTaskInput("Read [[Paper Notes]] tom #reading", {
     referenceDate,

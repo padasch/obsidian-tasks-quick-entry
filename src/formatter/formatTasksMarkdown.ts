@@ -63,7 +63,20 @@ export function formatTasksMarkdown(parsed: ParsedTaskInput, options: FormatTask
     }
   }
 
-  return `- [ ] ${parts.join(" ")}`;
+  const taskLine = `- [ ] ${parts.join(" ")}`;
+  const description = normalizeDescription(parsed.description);
+  if (description.length === 0) {
+    return taskLine;
+  }
+
+  return `${taskLine}\n    - ${description}`;
+}
+
+function normalizeDescription(description: string | undefined): string {
+  return (description ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatDates(dates: Partial<Record<DateType, string>>): string[] {

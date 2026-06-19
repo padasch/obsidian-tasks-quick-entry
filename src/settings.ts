@@ -4,6 +4,8 @@ export const TASK_LINE_TOKENS = ["priority", "text", "notes", "tags", "recurrenc
 export const TASK_INSERT_POSITIONS = ["first-line", "last-line"] as const;
 export const TASK_INSERT_TARGETS = ["file", "heading"] as const;
 export const COMMAND_PRESET_DATE_MODES = ["none", "today", "tomorrow", "next-week", "weekend"] as const;
+export const DETECTED_SUMMARY_LAYOUTS = ["chips", "lines"] as const;
+export const MARKDOWN_OUTPUT_LOCATIONS = ["result-area", "edit-section"] as const;
 
 export type DateType = (typeof DATE_TYPES)[number];
 export type MetadataPlacement = (typeof METADATA_PLACEMENTS)[number];
@@ -11,6 +13,8 @@ export type TaskLineToken = (typeof TASK_LINE_TOKENS)[number];
 export type TaskInsertPosition = (typeof TASK_INSERT_POSITIONS)[number];
 export type TaskInsertTarget = (typeof TASK_INSERT_TARGETS)[number];
 export type CommandPresetDateMode = (typeof COMMAND_PRESET_DATE_MODES)[number];
+export type DetectedSummaryLayout = (typeof DETECTED_SUMMARY_LAYOUTS)[number];
+export type MarkdownOutputLocation = (typeof MARKDOWN_OUTPUT_LOCATIONS)[number];
 
 export interface QuickAddCommandPreset {
   id: string;
@@ -37,6 +41,9 @@ export interface QuickAddTasksSettings {
   insertTarget: TaskInsertTarget;
   insertHeading: string;
   commandPresets: QuickAddCommandPreset[];
+  completionTriggerLength: number;
+  detectedSummaryLayout: DetectedSummaryLayout;
+  markdownOutputLocation: MarkdownOutputLocation;
 }
 
 export const DEFAULT_COMMAND_PRESETS: QuickAddCommandPreset[] = [
@@ -67,6 +74,9 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   insertTarget: "file",
   insertHeading: "Tasks",
   commandPresets: DEFAULT_COMMAND_PRESETS.map((preset) => ({ ...preset })),
+  completionTriggerLength: 3,
+  detectedSummaryLayout: "chips",
+  markdownOutputLocation: "edit-section",
 };
 
 export function isDateType(value: unknown): value is DateType {
@@ -91,6 +101,27 @@ export function isTaskInsertTarget(value: unknown): value is TaskInsertTarget {
 
 export function isCommandPresetDateMode(value: unknown): value is CommandPresetDateMode {
   return typeof value === "string" && COMMAND_PRESET_DATE_MODES.includes(value as CommandPresetDateMode);
+}
+
+export function isDetectedSummaryLayout(value: unknown): value is DetectedSummaryLayout {
+  return typeof value === "string" && DETECTED_SUMMARY_LAYOUTS.includes(value as DetectedSummaryLayout);
+}
+
+export function isMarkdownOutputLocation(value: unknown): value is MarkdownOutputLocation {
+  return typeof value === "string" && MARKDOWN_OUTPUT_LOCATIONS.includes(value as MarkdownOutputLocation);
+}
+
+function normalizeCompletionTriggerLength(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || Number.isNaN(value)) {
+    return DEFAULT_SETTINGS.completionTriggerLength;
+  }
+
+  const length = Math.round(value);
+  if (length <= 0) {
+    return DEFAULT_SETTINGS.completionTriggerLength;
+  }
+
+  return Math.min(10, Math.max(1, length));
 }
 
 export function normalizeSettings(data: unknown): QuickAddTasksSettings {
@@ -125,6 +156,15 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
     commandPresets: Array.isArray(incoming.commandPresets)
       ? normalizeCommandPresets(incoming.commandPresets)
       : DEFAULT_COMMAND_PRESETS.map((preset) => ({ ...preset })),
+    completionTriggerLength: normalizeCompletionTriggerLength((incoming as { completionTriggerLength?: unknown }).completionTriggerLength),
+    detectedSummaryLayout: ((): DetectedSummaryLayout => {
+      const raw = (incoming as { detectedSummaryLayout?: unknown }).detectedSummaryLayout;
+      return isDetectedSummaryLayout(raw) ? raw : DEFAULT_SETTINGS.detectedSummaryLayout;
+    })(),
+    markdownOutputLocation: ((): MarkdownOutputLocation => {
+      const raw = (incoming as { markdownOutputLocation?: unknown }).markdownOutputLocation;
+      return isMarkdownOutputLocation(raw) ? raw : DEFAULT_SETTINGS.markdownOutputLocation;
+    })(),
   };
 }
 
