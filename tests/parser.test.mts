@@ -154,6 +154,42 @@ test("supports month-name dates", () => {
   assert.equal(parseTaskInput("Do it May 5", { referenceDate }).dates.due, "2027-05-05");
 });
 
+test("supports prefixed month and year start dates", () => {
+  const inYear = parseTaskInput("Do it in 2024", { referenceDate });
+  assert.equal(inYear.dates.due, "2024-01-01");
+  assert.equal(inYear.date?.matchedText, "in 2024");
+  assert.equal(inYear.title, "Do it");
+
+  const byYear = parseTaskInput("Do it by 2024", { referenceDate });
+  assert.equal(byYear.dates.due, "2024-01-01");
+  assert.equal(byYear.title, "Do it");
+
+  const inSeptember = parseTaskInput("Do it in Sept", { referenceDate });
+  assert.equal(inSeptember.dates.due, "2026-09-01");
+  assert.equal(inSeptember.title, "Do it");
+
+  const bySeptember = parseTaskInput("Do it by September", { referenceDate });
+  assert.equal(bySeptember.dates.due, "2026-09-01");
+  assert.equal(bySeptember.title, "Do it");
+
+  const pastMonthThisYear = parseTaskInput("Do it in May", { referenceDate });
+  assert.equal(pastMonthThisYear.dates.due, "2026-05-01");
+
+  const explicitMonthYear = parseTaskInput("Do it by Sept 2024", { referenceDate });
+  assert.equal(explicitMonthYear.dates.due, "2024-09-01");
+  assert.equal(explicitMonthYear.title, "Do it");
+});
+
+test("supports prefixed full month-name dates", () => {
+  const monthFirst = parseTaskInput("Do it by Sept 3", { referenceDate });
+  assert.equal(monthFirst.dates.due, "2026-09-03");
+  assert.equal(monthFirst.title, "Do it");
+
+  const dayFirst = parseTaskInput("Do it in 3 Sept", { referenceDate });
+  assert.equal(dayFirst.dates.due, "2026-09-03");
+  assert.equal(dayFirst.title, "Do it");
+});
+
 test("supports period boundary dates", () => {
   assert.equal(parseTaskInput("Do it end of week", { referenceDate }).dates.due, "2026-06-21");
   assert.equal(parseTaskInput("Do it end of month", { referenceDate }).dates.due, "2026-06-30");

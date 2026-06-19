@@ -144,6 +144,8 @@ export function extractDateMatches(input: string, referenceDate = new Date()): D
   order += candidates.length;
   collectRelativeDates(input, reference, candidates, order);
   order += candidates.length;
+  collectPrefixedDateStarts(input, reference, candidates, order);
+  order += candidates.length;
   collectNamedMonthBoundaryDates(input, reference, candidates, order);
   order += candidates.length;
   collectPeriodBoundaryDates(input, reference, candidates, order);
@@ -230,6 +232,27 @@ function collectRelativeDates(input: string, reference: Date, candidates: DateCa
           ? addMonths(reference, direction * amount)
           : addYears(reference, direction * amount);
     return formatLocalDate(date);
+  });
+}
+
+function collectPrefixedDateStarts(input: string, reference: Date, candidates: DateCandidate[], orderStart: number): void {
+  const monthDayPattern = `(?:(?:${MONTH_PATTERN})\\s+${DAY_OF_MONTH_PATTERN}(?:,?\\s+\\d{4})?|${DAY_OF_MONTH_PATTERN}\\s+(?:${MONTH_PATTERN})(?:,?\\s+\\d{4})?)`;
+  const monthDayRegex = new RegExp(`(^|[^\\w#])((?:in|by)\\s+(${monthDayPattern})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  collectMatches(input, monthDayRegex, candidates, orderStart, (match) => {
+    return parseMonthNameDate(match[3], reference);
+  });
+
+  const monthOnlyRegex = new RegExp(`(^|[^\\w#])((?:in|by)\\s+(${MONTH_PATTERN})(?!\\s+${DAY_OF_MONTH_PATTERN}(?=$|[^\\w#]))(?:,?\\s+(\\d{4}))?${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  collectMatches(input, monthOnlyRegex, candidates, orderStart + candidates.length, (match) => {
+    const month = MONTHS[match[3].toLowerCase()];
+    const year = match[4] === undefined ? reference.getFullYear() : Number.parseInt(match[4], 10);
+    return isValidDateParts(year, month, 1) ? formatDateParts(year, month, 1) : null;
+  });
+
+  const yearOnlyRegex = new RegExp(`(^|[^\\w#])((?:in|by)\\s+(\\d{4})(?![-.\\d])${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  collectMatches(input, yearOnlyRegex, candidates, orderStart + candidates.length, (match) => {
+    const year = Number.parseInt(match[3], 10);
+    return isValidDateParts(year, 1, 1) ? formatDateParts(year, 1, 1) : null;
   });
 }
 
