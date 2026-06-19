@@ -32,6 +32,11 @@ export class TaskSearchModal extends Modal {
     this.modalEl.setAttr("aria-label", "Find task");
     contentEl.addClass("tasks-task-search-modal");
 
+    contentEl.createEl("h2", {
+      cls: "tasks-task-search-title",
+      text: "Find task",
+    });
+
     this.inputEl = contentEl.createEl("input", {
       cls: "tasks-task-search-input",
       attr: {
@@ -129,27 +134,23 @@ export class TaskSearchModal extends Modal {
         void this.openResult(result);
       });
 
-      const main = row.createDiv({ cls: "tasks-task-search-result-main" });
-      main.createEl("span", {
+      const resultLine = row.createDiv({ cls: "tasks-task-search-result-line" });
+      resultLine.createEl("span", {
         cls: `tasks-task-search-result-status${result.completed ? " is-completed" : ""}`,
         text: formatStatus(result.status),
       });
-      main.createEl("span", {
+      resultLine.createEl("span", {
         cls: "tasks-task-search-result-text",
-        text: result.taskText.length > 0 ? result.taskText : "(empty task)",
+        text: formatTaskText(result.taskText),
       });
-
-      const meta = row.createDiv({ cls: "tasks-task-search-result-meta" });
-      meta.createEl("span", { text: `${result.filePath}:${result.line + 1}` });
-      if (result.heading) {
-        meta.createEl("span", { text: result.heading });
-      }
-      if (result.tags.length > 0) {
-        meta.createEl("span", { text: result.tags.join(" ") });
-      }
-      if (result.links.length > 0) {
-        meta.createEl("span", { text: result.links.map((link) => `[[${link}]]`).join(" ") });
-      }
+      resultLine.createEl("span", {
+        cls: "tasks-task-search-result-separator",
+        text: "|",
+      });
+      resultLine.createEl("span", {
+        cls: "tasks-task-search-result-meta",
+        text: formatMetadata(result),
+      });
     }
   }
 
@@ -292,6 +293,8 @@ export class TaskSearchModal extends Modal {
   }
 }
 
+const TASK_TEXT_MAX_LENGTH = 88;
+
 function addSelectOption(selectEl: HTMLSelectElement, value: TaskCompletionFilter, label: string): void {
   selectEl.createEl("option", {
     text: label,
@@ -301,6 +304,26 @@ function addSelectOption(selectEl: HTMLSelectElement, value: TaskCompletionFilte
 
 function formatStatus(status: string): string {
   return `[${status}]`;
+}
+
+function formatTaskText(taskText: string): string {
+  const normalized = taskText.trim().length > 0 ? taskText.trim() : "(empty task)";
+  if (normalized.length <= TASK_TEXT_MAX_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, TASK_TEXT_MAX_LENGTH - 1).trimEnd()}…`;
+}
+
+function formatMetadata(result: TaskSearchResult): string {
+  return [
+    `${result.filePath}:${result.line + 1}`,
+    result.heading,
+    result.tags.length > 0 ? result.tags.join(" ") : null,
+    result.links.length > 0 ? result.links.map((link) => `[[${link}]]`).join(" ") : null,
+  ]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .join(" | ");
 }
 
 function getTaskCursorColumn(lineText: string): number {
