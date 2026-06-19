@@ -1,7 +1,8 @@
-import { Notice, Plugin, type ObsidianProtocolData } from "obsidian";
+import { Notice, Plugin, TFile, type ObsidianProtocolData, type TAbstractFile } from "obsidian";
 import { formatTasksMarkdown } from "./formatter/formatTasksMarkdown.ts";
 import { parseTaskInput, type ParsedTaskInput, type ParseTaskInputOptions } from "./parser/parseTaskInput.ts";
 import { getCommandPresetDateOptions } from "./presets/commandPresetDates.ts";
+import { TaskSearchIndex } from "./search/TaskSearchIndex.ts";
 import {
   DEFAULT_SETTINGS,
   normalizeSettings,
@@ -10,19 +11,29 @@ import {
 } from "./settings.ts";
 import { QuickAddModal } from "./ui/QuickAddModal.ts";
 import { TasksQuickAddSettingTab } from "./ui/SettingsTab.ts";
+import { TaskSearchModal } from "./ui/TaskSearchModal.ts";
 import { appendTaskToInbox, type TaskWriteTarget } from "./writer/taskWriter.ts";
 
 export default class TasksQuickAddPlugin extends Plugin {
   settings: QuickAddTasksSettings = DEFAULT_SETTINGS;
   private presetCommandIds = new Set<string>();
+  private taskSearchIndex!: TaskSearchIndex;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.taskSearchIndex = new TaskSearchIndex(this.app);
+    void this.taskSearchIndex.build();
+    this.registerTaskSearchEvents();
 
     this.addCommand({
       id: "new-task",
       name: "New task",
       callback: () => this.openQuickAddModal(),
+    });
+    this.addCommand({
+      id: "find-task",
+      name: "Find task",
+      callback: () => this.openTaskSearchModal(),
     });
 
     this.registerObsidianProtocolHandler("tasks-quick-entry", (params) => {
@@ -33,6 +44,7 @@ export default class TasksQuickAddPlugin extends Plugin {
     });
     this.refreshPresetCommands();
     this.addRibbonIcon("plus-circle", "New task", () => this.openQuickAddModal());
+    this.addRibbonIcon("search", "Find task", () => this.openTaskSearchModal());
     this.addSettingTab(new TasksQuickAddSettingTab(this));
   }
 
@@ -61,6 +73,10 @@ export default class TasksQuickAddPlugin extends Plugin {
         await this.addParsedTask(draft, target ?? this.getPresetWriteTarget(preset));
       },
     ).open();
+  }
+
+  openTaskSearchModal(): void {
+    new TaskSearchModal(this.app, this.taskSearchIndex).open();
   }
 
   async addTaskFromInput(input: string, preset: QuickAddCommandPreset | null = null): Promise<void> {
@@ -167,6 +183,22 @@ export default class TasksQuickAddPlugin extends Plugin {
   private getProtocolString(params: ObsidianProtocolData, key: string): string | undefined {
     const value = params[key];
     return typeof value === "string" && value !== "true" ? value : undefined;
+  }
+
+  private registerTaskSearchEvents(): void {
+    this.registerEvent(this.app.vault.on("create", (file) => this.queueTaskSearchRefresh(file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => this.queueTaskSearchRefresh(file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => this.taskSearchIndex.removeFile(file.path)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      this.taskSearchIndex.removeFile(oldPath);
+      this.queueTaskSearchRefresh(file);
+    }));
+  }
+
+  private queueTaskSearchRefresh(file: TAbstractFile): void {
+    if (file instanceof TFile) {
+      this.taskSearchIndex.queueRefresh(file);
+    }
   }
 }
 

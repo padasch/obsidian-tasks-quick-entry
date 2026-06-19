@@ -431,6 +431,107 @@
   background: var(--background-modifier-hover);
 }
 
+.modal.tasks-task-search-shell {
+  width: min(780px, calc(100vw - 32px));
+  max-width: min(780px, calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+}
+
+.tasks-task-search-modal {
+  display: grid;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 18px;
+}
+
+.tasks-task-search-input {
+  width: 100%;
+}
+
+.tasks-task-search-status {
+  min-height: 18px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.tasks-task-search-results {
+  display: grid;
+  gap: 4px;
+  max-height: min(520px, calc(100vh - 190px));
+  max-height: min(520px, calc(100dvh - 190px));
+  overflow: auto;
+}
+
+.tasks-task-search-result {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+  text-align: left;
+}
+
+.tasks-task-search-result:hover,
+.tasks-task-search-result.is-selected {
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
+}
+
+.tasks-task-search-result-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.tasks-task-search-result-status {
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.tasks-task-search-result-status.is-completed {
+  color: var(--text-muted);
+}
+
+.tasks-task-search-result-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-task-search-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+  padding-left: 34px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.3;
+}
+
+.tasks-task-search-result-meta > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tasks-quick-add-settings-group {
   margin: 16px 0;
   padding: 12px;

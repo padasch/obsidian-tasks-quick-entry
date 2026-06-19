@@ -3,12 +3,12 @@ import {
   getAllTags,
   normalizePath,
   PluginSettingTab,
-  prepareFuzzySearch,
   Setting,
   TFile,
   type App,
 } from "obsidian";
 import type TasksQuickAddPlugin from "../main.ts";
+import { fuzzySort } from "../search/fuzzySort.ts";
 import {
   COMMAND_PRESET_DATE_MODES,
   DATE_TYPES,
@@ -773,21 +773,6 @@ function getHeadingNames(app: App, file: TFile): string[] {
   }
 
   return names;
-}
-
-function fuzzySort<T>(items: T[], query: string, getText: (item: T) => string): T[] {
-  const normalizedQuery = query.trim().replace(/^#/, "");
-  if (normalizedQuery.length === 0) {
-    return items.slice(0, 30);
-  }
-
-  const search = prepareFuzzySearch(normalizedQuery);
-  return items
-    .map((item) => ({ item, match: search(getText(item)) }))
-    .filter((entry): entry is { item: T; match: NonNullable<typeof entry.match> } => entry.match !== null)
-    .sort((a, b) => b.match.score - a.match.score)
-    .map((entry) => entry.item)
-    .slice(0, 30);
 }
 
 function getCurrentToken(inputEl: HTMLInputElement): { start: number; end: number; token: string } {
