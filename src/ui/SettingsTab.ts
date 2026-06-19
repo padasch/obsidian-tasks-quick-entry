@@ -13,6 +13,7 @@ import {
   COMMAND_PRESET_DATE_MODES,
   DATE_TYPES,
   DETECTED_SUMMARY_LAYOUTS,
+  DESCRIPTION_FIELD_LOCATIONS,
   MARKDOWN_OUTPUT_LOCATIONS,
   DEFAULT_SETTINGS,
   TASK_INSERT_POSITIONS,
@@ -23,6 +24,7 @@ import {
   normalizeTaskTokenOrder,
   type CommandPresetDateMode,
   type DetectedSummaryLayout,
+  type DescriptionFieldLocation,
   type MarkdownOutputLocation,
   type QuickAddCommandPreset,
   type TaskInsertPosition,
@@ -241,6 +243,23 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             if (MARKDOWN_OUTPUT_LOCATIONS.includes(value as MarkdownOutputLocation)) {
               this.plugin.settings.markdownOutputLocation = value as MarkdownOutputLocation;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
+
+    new Setting(parsingEl)
+      .setName("Description field location")
+      .setDesc("Choose whether the optional description field is shown below the task entry or inside Edit Task.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("entry-area", "Below task entry");
+        dropdown.addOption("edit-section", "Edit Task section");
+
+        dropdown
+          .setValue(this.plugin.settings.descriptionFieldLocation)
+          .onChange(async (value) => {
+            if (DESCRIPTION_FIELD_LOCATIONS.includes(value as DescriptionFieldLocation)) {
+              this.plugin.settings.descriptionFieldLocation = value as DescriptionFieldLocation;
               await this.plugin.saveSettings();
             }
           });

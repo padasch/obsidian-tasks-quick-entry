@@ -6,6 +6,7 @@ export const TASK_INSERT_TARGETS = ["file", "heading"] as const;
 export const COMMAND_PRESET_DATE_MODES = ["none", "today", "tomorrow", "next-week", "weekend"] as const;
 export const DETECTED_SUMMARY_LAYOUTS = ["chips", "lines"] as const;
 export const MARKDOWN_OUTPUT_LOCATIONS = ["result-area", "edit-section"] as const;
+export const DESCRIPTION_FIELD_LOCATIONS = ["entry-area", "edit-section"] as const;
 
 export type DateType = (typeof DATE_TYPES)[number];
 export type MetadataPlacement = (typeof METADATA_PLACEMENTS)[number];
@@ -15,6 +16,7 @@ export type TaskInsertTarget = (typeof TASK_INSERT_TARGETS)[number];
 export type CommandPresetDateMode = (typeof COMMAND_PRESET_DATE_MODES)[number];
 export type DetectedSummaryLayout = (typeof DETECTED_SUMMARY_LAYOUTS)[number];
 export type MarkdownOutputLocation = (typeof MARKDOWN_OUTPUT_LOCATIONS)[number];
+export type DescriptionFieldLocation = (typeof DESCRIPTION_FIELD_LOCATIONS)[number];
 
 export interface QuickAddCommandPreset {
   id: string;
@@ -44,6 +46,7 @@ export interface QuickAddTasksSettings {
   completionTriggerLength: number;
   detectedSummaryLayout: DetectedSummaryLayout;
   markdownOutputLocation: MarkdownOutputLocation;
+  descriptionFieldLocation: DescriptionFieldLocation;
 }
 
 export const DEFAULT_COMMAND_PRESETS: QuickAddCommandPreset[] = [
@@ -77,6 +80,7 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   completionTriggerLength: 3,
   detectedSummaryLayout: "chips",
   markdownOutputLocation: "edit-section",
+  descriptionFieldLocation: "entry-area",
 };
 
 export function isDateType(value: unknown): value is DateType {
@@ -109,6 +113,10 @@ export function isDetectedSummaryLayout(value: unknown): value is DetectedSummar
 
 export function isMarkdownOutputLocation(value: unknown): value is MarkdownOutputLocation {
   return typeof value === "string" && MARKDOWN_OUTPUT_LOCATIONS.includes(value as MarkdownOutputLocation);
+}
+
+export function isDescriptionFieldLocation(value: unknown): value is DescriptionFieldLocation {
+  return typeof value === "string" && DESCRIPTION_FIELD_LOCATIONS.includes(value as DescriptionFieldLocation);
 }
 
 function normalizeCompletionTriggerLength(value: unknown): number {
@@ -164,6 +172,10 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
     markdownOutputLocation: ((): MarkdownOutputLocation => {
       const raw = (incoming as { markdownOutputLocation?: unknown }).markdownOutputLocation;
       return isMarkdownOutputLocation(raw) ? raw : DEFAULT_SETTINGS.markdownOutputLocation;
+    })(),
+    descriptionFieldLocation: ((): DescriptionFieldLocation => {
+      const raw = (incoming as { descriptionFieldLocation?: unknown }).descriptionFieldLocation;
+      return isDescriptionFieldLocation(raw) ? raw : DEFAULT_SETTINGS.descriptionFieldLocation;
     })(),
   };
 }

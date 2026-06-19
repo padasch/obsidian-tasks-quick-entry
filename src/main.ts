@@ -56,6 +56,7 @@ export default class TasksQuickAddPlugin extends Plugin {
       this.settings.completionTriggerLength,
       this.settings.detectedSummaryLayout,
       this.settings.markdownOutputLocation,
+      this.settings.descriptionFieldLocation,
       async (draft, target) => {
         await this.addParsedTask(draft, target ?? this.getPresetWriteTarget(preset));
       },

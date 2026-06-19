@@ -17,6 +17,7 @@ import {
   DATE_TYPES,
   type DateType,
   type DetectedSummaryLayout,
+  type DescriptionFieldLocation,
   type MarkdownOutputLocation,
 } from "../settings.ts";
 import type { TaskWriteTarget } from "../writer/taskWriter.ts";
@@ -147,6 +148,7 @@ export class QuickAddModal extends Modal {
   private readonly completionTriggerLength: number;
   private readonly detectedSummaryLayout: DetectedSummaryLayout;
   private readonly markdownOutputLocation: MarkdownOutputLocation;
+  private readonly descriptionFieldLocation: DescriptionFieldLocation;
   private readonly onSubmitTask: (draft: ParsedTaskInput, target?: TaskWriteTarget | null) => Promise<void>;
   private summaryHeaderEl!: HTMLElement;
   private inputEl!: HTMLInputElement;
@@ -186,6 +188,7 @@ export class QuickAddModal extends Modal {
     completionTriggerLength: number,
     detectedSummaryLayout: DetectedSummaryLayout,
     markdownOutputLocation: MarkdownOutputLocation,
+    descriptionFieldLocation: DescriptionFieldLocation,
     onSubmitTask: (draft: ParsedTaskInput, target?: TaskWriteTarget | null) => Promise<void>,
   ) {
     super(app);
@@ -194,6 +197,7 @@ export class QuickAddModal extends Modal {
     this.completionTriggerLength = completionTriggerLength;
     this.detectedSummaryLayout = detectedSummaryLayout;
     this.markdownOutputLocation = markdownOutputLocation;
+    this.descriptionFieldLocation = descriptionFieldLocation;
     this.onSubmitTask = onSubmitTask;
   }
 
@@ -201,8 +205,8 @@ export class QuickAddModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     this.modalEl.addClass("tasks-quick-add-shell");
+    this.modalEl.setAttr("aria-label", this.modalTitle);
     contentEl.addClass("tasks-quick-add-modal");
-    contentEl.createEl("h2", { text: this.modalTitle });
 
     this.summaryHeaderEl = contentEl.createDiv({ cls: "tasks-quick-add-parse-summary" });
 
@@ -214,7 +218,7 @@ export class QuickAddModal extends Modal {
         "aria-label": "Task",
         "autocomplete": "off",
         "spellcheck": "true",
-        placeholder: `${this.modalTitle} - Type a task to see detected date, recurrence, priority, files, and tags...`,
+        placeholder: "Type a task to see detected date, recurrence, priority, files, and tags...",
       },
     });
     this.inputEl.type = "text";
@@ -229,7 +233,12 @@ export class QuickAddModal extends Modal {
     });
     this.submitButtonEl.type = "submit";
 
+    if (this.descriptionFieldLocation === "entry-area") {
+      this.renderInlineDescriptionField(contentEl);
+    }
+
     this.parsedResultEl = contentEl.createDiv({ cls: "tasks-quick-add-result" });
+    this.parsedResultEl.hide();
     this.parsedOutputEl = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-output-container" });
     this.linkedTargetEl = contentEl.createDiv({ cls: "tasks-quick-add-linked-target" });
     this.renderEditingDetails(contentEl);
@@ -318,25 +327,15 @@ export class QuickAddModal extends Modal {
       this.updatePreview();
     });
 
-    const descriptionRow = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row" });
-    descriptionRow.createEl("label", {
-      text: "Description",
-      attr: { for: "tasks-quick-add-description" },
-    });
-    const descriptionCell = descriptionRow.createDiv({ cls: "tasks-quick-add-edit-cell" });
-    this.descriptionInputEl = descriptionCell.createEl("input", {
-      attr: {
-        id: "tasks-quick-add-description",
-        "aria-label": "Description",
-        placeholder: "Optional task description",
-      },
-    });
-    this.descriptionInputEl.type = "text";
-    this.descriptionInputEl.addEventListener("input", () => {
-      this.manualDescription = this.descriptionInputEl.value;
-      this.manualDescriptionTouched = true;
-      this.updatePreview();
-    });
+    if (this.descriptionFieldLocation === "edit-section") {
+      const descriptionRow = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row" });
+      descriptionRow.createEl("label", {
+        text: "Description",
+        attr: { for: "tasks-quick-add-description" },
+      });
+      const descriptionCell = descriptionRow.createDiv({ cls: "tasks-quick-add-edit-cell" });
+      this.renderDescriptionInput(descriptionCell);
+    }
 
     const datesSection = tableGrid.createDiv({ cls: "tasks-quick-add-edit-row tasks-quick-add-date-grid" });
     datesSection.createEl("div", {
@@ -388,6 +387,31 @@ export class QuickAddModal extends Modal {
     this.editOutputEl = body.createDiv({ cls: "tasks-quick-add-edit-output" });
   }
 
+  private renderInlineDescriptionField(containerEl: HTMLElement): void {
+    const row = containerEl.createDiv({ cls: "tasks-quick-add-entry-description" });
+    row.createEl("label", {
+      text: "Description",
+      attr: { for: "tasks-quick-add-description" },
+    });
+    this.renderDescriptionInput(row);
+  }
+
+  private renderDescriptionInput(containerEl: HTMLElement): void {
+    this.descriptionInputEl = containerEl.createEl("input", {
+      attr: {
+        id: "tasks-quick-add-description",
+        "aria-label": "Description",
+        placeholder: "Optional task description",
+      },
+    });
+    this.descriptionInputEl.type = "text";
+    this.descriptionInputEl.addEventListener("input", () => {
+      this.manualDescription = this.descriptionInputEl.value;
+      this.manualDescriptionTouched = true;
+      this.updatePreview();
+    });
+  }
+
   private async submitDraft(): Promise<void> {
     this.hideSuggestions();
     this.inputEl.disabled = true;
@@ -409,16 +433,12 @@ export class QuickAddModal extends Modal {
 
   private updatePreview(): void {
     this.parsedResultEl.empty();
+    this.parsedResultEl.hide();
     this.parsedOutputEl = this.parsedResultEl.createDiv({ cls: "tasks-quick-add-output-container" });
 
     if (this.inputEl.value.trim().length === 0) {
       this.summaryHeaderEl.empty();
-      this.summaryHeaderEl.appendText(`${this.modalTitle} - waiting for input`);
-
-      this.parsedOutputEl.createDiv({
-        cls: "tasks-quick-add-empty",
-        text: "Type a task to see detected text, dates, recurrence, priority, files, and tags.",
-      });
+      this.summaryHeaderEl.createEl("span", { cls: "tasks-quick-add-muted", text: "Waiting for input" });
       this.syncEditingControls(null);
       this.editOutputEl.empty();
       this.renderLinkedTargetControl(null);
@@ -439,6 +459,7 @@ export class QuickAddModal extends Modal {
         cls: "tasks-quick-add-error",
         text: error instanceof Error ? error.message : "Could not parse task.",
       });
+      this.parsedResultEl.show();
       this.renderLinkedTargetControl(null);
       this.editOutputEl.empty();
     }
@@ -448,23 +469,15 @@ export class QuickAddModal extends Modal {
     const outputDraftText = formatTasksMarkdown(outputDraft, this.formatOptions);
     this.renderMetadataConflicts(this.parsedOutputEl, draft.conflicts);
 
-    const titleRow = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-result-title" });
-    titleRow.createEl("span", { cls: "tasks-quick-add-label", text: "Text" });
-    titleRow.createEl("strong", { text: outputDraft.title });
-
-    const detected = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-detected" });
-    detected.createEl("span", { cls: "tasks-quick-add-label", text: "Detected" });
-
-    if (this.detectedSummaryLayout === "lines") {
-      this.renderDetectedRows(detected, draft);
-    } else {
-      const chipWrap = detected.createDiv({ cls: "tasks-quick-add-chips" });
-      this.renderDetectedChips(chipWrap, draft);
+    if (this.markdownOutputLocation === "result-area") {
+      const output = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-output" });
+      output.createEl("span", { cls: "tasks-quick-add-label", text: "Markdown" });
+      output.createEl("code", { text: outputDraftText });
     }
 
-    const output = this.parsedOutputEl.createDiv({ cls: "tasks-quick-add-output" });
-    output.createEl("span", { cls: "tasks-quick-add-label", text: "Markdown" });
-    output.createEl("code", { text: outputDraftText });
+    if (this.parsedOutputEl.childElementCount > 0) {
+      this.parsedResultEl.show();
+    }
 
     this.editOutputEl.empty();
     if (this.markdownOutputLocation === "edit-section") {
@@ -473,7 +486,6 @@ export class QuickAddModal extends Modal {
         text: "Markdown",
       });
       this.editOutputEl.createEl("code", { text: outputDraftText, cls: "tasks-quick-add-output-code" });
-      output.hide();
     }
   }
 
@@ -484,12 +496,21 @@ export class QuickAddModal extends Modal {
     const headerRow = this.summaryHeaderEl.createDiv({ cls: "tasks-quick-add-summary-header" });
     const commandCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-command" });
     const detectedCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-detected" });
-    const displayTitle = `${this.modalTitle} · ${sections.title}`;
-    commandCell.appendText(`${this.modalTitle} · `);
-    renderHighlightedInput(commandCell, sections.title, displayTitle, getParsedTokenRanges(sections.title, sections.parsedTokens));
+    renderHighlightedInput(commandCell, sections.title, draft.title, getParsedTokenRanges(sections.title, sections.parsedTokens));
 
     if (sections.details.length === 0) {
       detectedCell.createEl("span", { cls: "tasks-quick-add-muted", text: "No detected metadata" });
+      return;
+    }
+
+    if (this.detectedSummaryLayout === "chips") {
+      const chips = detectedCell.createDiv({ cls: "tasks-quick-add-summary-chips" });
+      for (const detail of sections.details) {
+        chips.createEl("span", {
+          cls: "tasks-quick-add-summary-chip",
+          text: detail.value.length > 0 ? `${detail.label}: ${detail.value}` : `${detail.label}: -`,
+        });
+      }
       return;
     }
 
@@ -512,7 +533,7 @@ export class QuickAddModal extends Modal {
     const detectedCell = headerRow.createDiv({ cls: "tasks-quick-add-summary-detected" });
 
     commandCell.createEl("span", {
-      text: `${this.modalTitle} · ${rawInput}`,
+      text: rawInput,
       attr: { title: this.modalTitle },
     });
     detectedCell.createEl("span", {
