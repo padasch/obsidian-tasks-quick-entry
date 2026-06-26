@@ -295,14 +295,34 @@ test("warns when multiple dates are detected and uses the first", () => {
     referenceDate,
   });
 
-  assert.equal(parsed.title, "Review draft");
+  assert.equal(parsed.title, "Review draft next week");
   assert.equal(parsed.dates.due, "2026-06-16");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Review draft next week 📅 2026-06-16");
   assert.deepEqual(parsed.conflicts, [
     {
       kind: "date",
       label: "Duplicated Date",
       used: "2026-06-16",
       ignored: ["2026-06-22"],
+    },
+  ]);
+});
+
+test("keeps ignored date text in the task title", () => {
+  const parsed = parseTaskInput("On Friday Organize everything for Saturday's party", {
+    referenceDate,
+  });
+
+  assert.equal(parsed.title, "Organize everything for Saturday's party");
+  assert.equal(parsed.dates.due, "2026-06-19");
+  assert.equal(parsed.dateTexts.due, "On Friday");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Organize everything for Saturday's party 📅 2026-06-19");
+  assert.deepEqual(parsed.conflicts, [
+    {
+      kind: "date",
+      label: "Duplicated Date",
+      used: "2026-06-19",
+      ignored: ["2026-06-20"],
     },
   ]);
 });

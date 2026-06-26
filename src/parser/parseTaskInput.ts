@@ -63,8 +63,8 @@ export function parseTaskInput(input: string, options: ParseTaskInputOptions = {
   const dateResult = extractDateMatches(inputWithoutRecurrence, options.referenceDate);
   const dateMatch = dateResult.best;
   const shouldRemoveDate = options.removeParsedDateText ?? true;
-  const titleWithoutMetadata = dateResult.matches.length > 0 && shouldRemoveDate
-    ? removeMetadataMatches(inputWithoutRecurrence, dateResult.matches)
+  const titleWithoutMetadata = dateMatch !== null && shouldRemoveDate
+    ? removeMetadataMatches(inputWithoutRecurrence, [dateMatch])
     : inputWithoutRecurrence;
 
   const normalizedTitle = normalizeRepeatedInlineMetadata(

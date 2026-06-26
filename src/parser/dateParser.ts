@@ -328,7 +328,7 @@ function collectMonthNameDates(input: string, reference: Date, candidates: DateC
 }
 
 function collectNextWeekdayDates(input: string, reference: Date, candidates: DateCandidate[], orderStart: number): void {
-  const regex = new RegExp(`(^|[^\\w#])(next\\s+(${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  const regex = new RegExp(`(^|[^\\w#])((?:on\\s+)?next\\s+(${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
   collectMatches(input, regex, candidates, orderStart, (match) => {
     const targetDay = WEEKDAYS[match[3].toLowerCase()];
     return formatLocalDate(addDays(nextWeekday(reference, targetDay, true), 7));
@@ -336,7 +336,7 @@ function collectNextWeekdayDates(input: string, reference: Date, candidates: Dat
 }
 
 function collectThisWeekdayDates(input: string, reference: Date, candidates: DateCandidate[], orderStart: number): void {
-  const regex = new RegExp(`(^|[^\\w#])(this\\s+(${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  const regex = new RegExp(`(^|[^\\w#])((?:on\\s+)?this\\s+(${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
   collectMatches(input, regex, candidates, orderStart, (match) => {
     const targetDay = WEEKDAYS[match[3].toLowerCase()];
     return formatLocalDate(nextWeekday(reference, targetDay, true));
@@ -344,9 +344,9 @@ function collectThisWeekdayDates(input: string, reference: Date, candidates: Dat
 }
 
 function collectBareWeekdayDates(input: string, reference: Date, candidates: DateCandidate[], orderStart: number): void {
-  const regex = new RegExp(`(^|[^\\w#])((?:${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
+  const regex = new RegExp(`(^|[^\\w#])((?:on\\s+)?(?:${WEEKDAY_PATTERN})${TIME_OF_DAY_SUFFIX_PATTERN})(?=$|[^\\w#])`, "gi");
   collectMatches(input, regex, candidates, orderStart, (match) => {
-    const targetDay = WEEKDAYS[stripTimeOfDaySuffix(match[2].toLowerCase())];
+    const targetDay = WEEKDAYS[stripDatePreposition(stripTimeOfDaySuffix(match[2].toLowerCase()))];
     return formatLocalDate(nextWeekday(reference, targetDay, true));
   });
 }
@@ -450,6 +450,10 @@ function stripTimeOfDaySuffix(input: string): string {
   return input
     .replace(/\s+(?:(?:at\s+)?(?:noon|midday|midnight)|morning|afternoon|evening|night)$/i, "")
     .trim();
+}
+
+function stripDatePreposition(input: string): string {
+  return input.replace(/^on\s+/i, "").trim();
 }
 
 function parseAmount(input: string): number | null {
