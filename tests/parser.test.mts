@@ -302,8 +302,8 @@ test("warns when multiple dates are detected and uses the first", () => {
     {
       kind: "date",
       label: "Duplicated Date",
-      used: "2026-06-16",
-      ignored: ["2026-06-22"],
+      used: "tom (2026-06-16)",
+      ignored: ["next week (2026-06-22)"],
     },
   ]);
 });
@@ -321,8 +321,8 @@ test("keeps ignored date text in the task title", () => {
     {
       kind: "date",
       label: "Duplicated Date",
-      used: "2026-06-19",
-      ignored: ["2026-06-20"],
+      used: "On Friday (2026-06-19)",
+      ignored: ["Saturday (2026-06-20)"],
     },
   ]);
 });

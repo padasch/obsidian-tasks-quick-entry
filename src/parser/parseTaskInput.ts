@@ -175,8 +175,8 @@ function getDateConflict(matches: DateParseResult[]): ParsedMetadataConflict | n
   return {
     kind: "date",
     label: "Duplicated Date",
-    used: matches[0].date,
-    ignored: matches.slice(1).map((match) => match.date),
+    used: formatDateMatch(matches[0]),
+    ignored: matches.slice(1).map(formatDateMatch),
   };
 }
 
@@ -264,6 +264,10 @@ function formatLinkDisplay(linkText: string): string {
 
 function formatPriorityMatch(match: PriorityParseMatch): string {
   return `${match.label}${match.marker ? ` ${match.marker}` : ""}`;
+}
+
+function formatDateMatch(match: DateParseResult): string {
+  return `${match.matchedText} (${match.date})`;
 }
 
 function removeMetadataMatches(input: string, matches: Array<{ start: number; end: number }>): string {

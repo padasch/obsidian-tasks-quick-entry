@@ -654,7 +654,7 @@ export class QuickAddModal extends Modal {
     const list = containerEl.createDiv({ cls: "tasks-quick-add-conflicts" });
     for (const conflict of conflicts) {
       const item = list.createDiv({ cls: "tasks-quick-add-conflict" });
-      item.setText(`${conflict.label}: Using "${conflict.used}" (ignoring ${formatQuotedList(conflict.ignored)})`);
+      item.setText(`${conflict.label}: Using "${conflict.used}" - Ignoring ${formatQuotedList(conflict.ignored)}`);
     }
   }
 
