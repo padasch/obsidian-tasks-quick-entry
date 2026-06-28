@@ -32,7 +32,7 @@ export default class TasksQuickAddPlugin extends Plugin {
     });
     this.addCommand({
       id: "find-task",
-      name: "Find task",
+      name: "Search task",
       callback: () => this.openTaskSearchModal(),
     });
 
@@ -44,7 +44,7 @@ export default class TasksQuickAddPlugin extends Plugin {
     });
     this.refreshPresetCommands();
     this.addRibbonIcon("plus-circle", "New task", () => this.openQuickAddModal());
-    this.addRibbonIcon("search", "Find task", () => this.openTaskSearchModal());
+    this.addRibbonIcon("search", "Search task", () => this.openTaskSearchModal());
     this.addSettingTab(new TasksQuickAddSettingTab(this));
   }
 

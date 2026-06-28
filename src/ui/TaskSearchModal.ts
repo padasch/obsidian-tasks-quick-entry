@@ -29,12 +29,12 @@ export class TaskSearchModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     this.modalEl.addClass("tasks-task-search-shell");
-    this.modalEl.setAttr("aria-label", "Find task");
+    this.modalEl.setAttr("aria-label", "Search task");
     contentEl.addClass("tasks-task-search-modal");
 
     contentEl.createEl("h2", {
       cls: "tasks-task-search-title",
-      text: "Find task",
+      text: "Search task",
     });
 
     this.inputEl = contentEl.createEl("input", {
