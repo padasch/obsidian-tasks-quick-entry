@@ -83,6 +83,34 @@ test("does not parse p4 as a priority marker", () => {
   assert.equal(formatTasksMarkdown(parsed), "- [ ] Triage inbox p4 📅 2026-06-16");
 });
 
+test("supports exclamation mark priority aliases", () => {
+  const high = parseTaskInput("Review draft ! tomorrow", {
+    referenceDate,
+  });
+  assert.equal(high.priority?.level, "high");
+  assert.equal(high.priority?.matchedText, "!");
+  assert.equal(formatTasksMarkdown(high), "- [ ] ⏫ Review draft 📅 2026-06-16");
+
+  const highest = parseTaskInput("!! Review draft tomorrow", {
+    referenceDate,
+  });
+  assert.equal(highest.priority?.level, "highest");
+  assert.equal(highest.priority?.matchedText, "!!");
+  assert.equal(formatTasksMarkdown(highest), "- [ ] 🔺 Review draft 📅 2026-06-16");
+
+  const prefixed = parseTaskInput("Review draft prio !!", {
+    referenceDate,
+  });
+  assert.equal(prefixed.priority?.level, "highest");
+  assert.equal(prefixed.title, "Review draft");
+
+  const punctuation = parseTaskInput("Review this! tomorrow", {
+    referenceDate,
+  });
+  assert.equal(punctuation.priority, null);
+  assert.equal(formatTasksMarkdown(punctuation), "- [ ] Review this! 📅 2026-06-16");
+});
+
 test("formats manual low and lowest priorities", () => {
   const parsed = parseTaskInput("Review manuscript tomorrow", {
     referenceDate,

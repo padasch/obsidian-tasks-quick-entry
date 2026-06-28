@@ -64,22 +64,22 @@ export function extractPriority(input: string): PriorityParseResult {
   const matches: PriorityParseMatch[] = [];
 
   const priorityMatchPattern = new RegExp(
-    `(^|\\s)(?:prio\\s+(${PRIORITY_WORDS})|(${PRIORITY_WORDS}))(?:$|(?=\\s))`,
+    `(^|\\s)(?:prio\\s+(${PRIORITY_WORDS}|!!|!)|(${PRIORITY_WORDS})|(!!|!))(?:$|(?=\\s))`,
     "gi",
   );
-  const cleanedInput = input.replace(priorityMatchPattern, (match, leading: string, prioLevel: string | undefined, bareLevel: string | undefined, offset: number) => {
-    const rawLevel = bareLevel ?? prioLevel;
-    if (rawLevel === undefined) {
+  const cleanedInput = input.replace(priorityMatchPattern, (match, leading: string, prefixedPriority: string | undefined, bareLevel: string | undefined, priorityMarker: string | undefined, offset: number) => {
+    const rawPriority = priorityMarker ?? bareLevel ?? prefixedPriority;
+    if (rawPriority === undefined) {
       return match;
     }
 
-    const matchedLevel = rawLevel.toLowerCase() as PriorityLevel;
+    const matchedLevel = normalizePriorityToken(rawPriority);
     const start = offset + leading.length;
     matches.push({
       ...priorityFromLevel(matchedLevel),
-      matchedText: rawLevel,
+      matchedText: rawPriority,
       start,
-      end: start + rawLevel.length,
+      end: start + rawPriority.length,
     });
 
     return leading;
@@ -92,4 +92,16 @@ export function extractPriority(input: string): PriorityParseResult {
     priority: matches[0] ?? null,
     matches,
   };
+}
+
+function normalizePriorityToken(token: string): PriorityLevel {
+  if (token === "!") {
+    return "high";
+  }
+
+  if (token === "!!") {
+    return "highest";
+  }
+
+  return token.toLowerCase() as PriorityLevel;
 }
