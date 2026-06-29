@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { App, TFile } from "obsidian";
+import { TaskSearchIndex } from "../src/search/TaskSearchIndex.ts";
 import {
   extractTaskSearchResults,
   searchTaskResults,
+  type TaskSearchResult,
 } from "../src/search/taskSearchCore.ts";
 
 test("extracts incomplete, completed, custom status, and nested tasks", () => {
@@ -103,30 +106,32 @@ test("search includes tags and headings", () => {
   assert.equal(searchTaskResults(tasks, "admin")[0]?.taskText, "Renew license");
 });
 
-test("extracts links and due date presence", () => {
+test("extracts links, due dates, and priority markers", () => {
   const tasks = extractTaskSearchResults({
     filePath: "Tasks.md",
-    content: "- [ ] Review [[Project Note|project]] #work 📅 2026-06-22",
+    content: "- [ ] Review [[Project Note|project]] #work ⏫ 📅 2026-06-22",
   });
 
   assert.deepEqual(tasks[0]?.links, ["Project Note|project"]);
+  assert.equal(tasks[0]?.dueDate, "2026-06-22");
   assert.equal(tasks[0]?.hasDueDate, true);
+  assert.equal(tasks[0]?.priority, "high");
 });
 
-test("filters by completion, tags, links, and missing due date", () => {
+test("filters by completion, tags, links, due date, priority, tag query, and file query", () => {
   const tasks = extractTaskSearchResults({
-    filePath: "Tasks.md",
+    filePath: "Projects/Tasks.md",
     content: [
       "- [ ] Open with tag #work",
       "- [x] Done with tag #work",
       "- [ ] Open with link [[Project]]",
-      "- [ ] Open with due 📅 2026-06-22",
+      "- [ ] Open with due ⏫ 📅 2026-06-22",
     ].join("\n"),
   });
 
   assert.deepEqual(
     searchTaskResults(tasks, "", { filters: { completion: "open" } }).map((task) => task.taskText),
-    ["Open with tag #work", "Open with link [[Project]]", "Open with due 📅 2026-06-22"],
+    ["Open with tag #work", "Open with link [[Project]]", "Open with due ⏫ 📅 2026-06-22"],
   );
   assert.deepEqual(
     searchTaskResults(tasks, "", { filters: { completion: "completed" } }).map((task) => task.taskText),
@@ -144,6 +149,26 @@ test("filters by completion, tags, links, and missing due date", () => {
     searchTaskResults(tasks, "", { filters: { noDueDate: true } }).map((task) => task.taskText),
     ["Open with tag #work", "Open with link [[Project]]", "Done with tag #work"],
   );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { dueDate: "with-due" } }).map((task) => task.taskText),
+    ["Open with due ⏫ 📅 2026-06-22"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { priority: "high" } }).map((task) => task.taskText),
+    ["Open with due ⏫ 📅 2026-06-22"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { priority: "none" } }).map((task) => task.taskText),
+    ["Open with tag #work", "Open with link [[Project]]", "Done with tag #work"],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { filters: { tagQuery: "wor" } }).map((task) => task.taskText),
+    ["Open with tag #work", "Done with tag #work"],
+  );
+  assert.equal(
+    searchTaskResults(tasks, "", { filters: { fileQuery: "projects" } }).length,
+    4,
+  );
 });
 
 test("incomplete tasks sort before completed tasks when scores match", () => {
@@ -160,3 +185,110 @@ test("incomplete tasks sort before completed tasks when scores match", () => {
   assert.equal(results[0]?.completed, false);
   assert.equal(results[0]?.line, 1);
 });
+
+test("sorts task results by due date, priority, tag, and text", () => {
+  const tasks = extractTaskSearchResults({
+    filePath: "Tasks.md",
+    content: [
+      "- [ ] Zebra #later 🔽 📅 2026-06-25",
+      "- [ ] Alpha #alpha 🔺 📅 2026-06-20",
+      "- [ ] Middle #beta ⏫",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { sort: "due" }).map((task) => task.taskText),
+    [
+      "Alpha #alpha 🔺 📅 2026-06-20",
+      "Zebra #later 🔽 📅 2026-06-25",
+      "Middle #beta ⏫",
+    ],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { sort: "priority" }).map((task) => task.taskText),
+    [
+      "Alpha #alpha 🔺 📅 2026-06-20",
+      "Middle #beta ⏫",
+      "Zebra #later 🔽 📅 2026-06-25",
+    ],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { sort: "tag" }).map((task) => task.taskText),
+    [
+      "Alpha #alpha 🔺 📅 2026-06-20",
+      "Middle #beta ⏫",
+      "Zebra #later 🔽 📅 2026-06-25",
+    ],
+  );
+  assert.deepEqual(
+    searchTaskResults(tasks, "", { sort: "text" }).map((task) => task.taskText),
+    [
+      "Alpha #alpha 🔺 📅 2026-06-20",
+      "Middle #beta ⏫",
+      "Zebra #later 🔽 📅 2026-06-25",
+    ],
+  );
+});
+
+test("task search index reports edited existing tasks", async () => {
+  const fixture = createTaskSearchIndexFixture("- [ ] Review draft 📅 2026-06-16");
+  const editedTasks: TaskSearchResult[] = [];
+  const index = new TaskSearchIndex(fixture.app, {
+    onTaskEdited: (task) => editedTasks.push(task),
+  });
+
+  await index.refreshFile(fixture.file);
+  fixture.setContent("- [x] Review draft 📅 2026-06-20");
+  await index.refreshFile(fixture.file);
+
+  assert.equal(editedTasks.length, 1);
+  assert.equal(editedTasks[0]?.completed, true);
+  assert.equal(editedTasks[0]?.dueDate, "2026-06-20");
+});
+
+test("task search index ignores inserted tasks that only move existing lines", async () => {
+  const fixture = createTaskSearchIndexFixture([
+    "- [ ] First task",
+    "- [ ] Second task",
+  ].join("\n"));
+  const editedTasks: TaskSearchResult[] = [];
+  const index = new TaskSearchIndex(fixture.app, {
+    onTaskEdited: (task) => editedTasks.push(task),
+  });
+
+  await index.refreshFile(fixture.file);
+  fixture.setContent([
+    "- [ ] New task",
+    "- [ ] First task",
+    "- [ ] Second task",
+  ].join("\n"));
+  await index.refreshFile(fixture.file);
+
+  assert.deepEqual(editedTasks, []);
+});
+
+function createTaskSearchIndexFixture(initialContent: string): {
+  app: App;
+  file: TFile;
+  setContent: (content: string) => void;
+} {
+  let content = initialContent;
+  return {
+    app: {
+      vault: {
+        cachedRead: async () => content,
+        getMarkdownFiles: () => [],
+      },
+      metadataCache: {
+        getFileCache: () => null,
+      },
+    } as unknown as App,
+    file: {
+      path: "Tasks.md",
+      extension: "md",
+    } as TFile,
+    setContent: (nextContent: string) => {
+      content = nextContent;
+    },
+  };
+}

@@ -16,6 +16,7 @@ import {
   DESCRIPTION_FIELD_LOCATIONS,
   MARKDOWN_OUTPUT_LOCATIONS,
   DEFAULT_SETTINGS,
+  RECENT_EDITED_TASK_LIMIT,
   TASK_INSERT_POSITIONS,
   TASK_INSERT_TARGETS,
   TASK_LINE_TOKENS,
@@ -264,6 +265,24 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    const searchEl = this.createSettingsGroup(containerEl, "Search");
+
+    new Setting(searchEl)
+      .setName("Recently edited tasks")
+      .setDesc("Number of recent edits shown in the Search task modal. Set to 0 to hide them.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.recentEditedTaskCount))
+        .setValue(String(this.plugin.settings.recentEditedTaskCount))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          const clamped = Number.isNaN(parsed)
+            ? DEFAULT_SETTINGS.recentEditedTaskCount
+            : Math.min(RECENT_EDITED_TASK_LIMIT, Math.max(0, parsed));
+          this.plugin.settings.recentEditedTaskCount = clamped;
+          text.setValue(String(clamped));
+          await this.plugin.saveSettings();
+        }));
 
     this.renderCommandPresets(containerEl);
   }

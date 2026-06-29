@@ -1,3 +1,8 @@
+import {
+  PRIORITY_LEVELS,
+  type PriorityLevel,
+} from "./parser/priorityParser.ts";
+
 export const DATE_TYPES = ["due", "scheduled", "start"] as const;
 export const METADATA_PLACEMENTS = ["first", "where-entered", "last"] as const;
 export const TASK_LINE_TOKENS = ["priority", "text", "notes", "tags", "recurrence", "dates"] as const;
@@ -7,6 +12,8 @@ export const COMMAND_PRESET_DATE_MODES = ["none", "today", "tomorrow", "next-wee
 export const DETECTED_SUMMARY_LAYOUTS = ["chips", "lines"] as const;
 export const MARKDOWN_OUTPUT_LOCATIONS = ["result-area", "edit-section"] as const;
 export const DESCRIPTION_FIELD_LOCATIONS = ["entry-area", "edit-section"] as const;
+export const RECENT_EDITED_TASK_LIMIT = 20;
+const PRE_TASKS_COMPAT_PRIORITY_ORDER: TaskLineToken[] = ["priority", "text", "notes", "tags", "recurrence", "dates"];
 
 export type DateType = (typeof DATE_TYPES)[number];
 export type MetadataPlacement = (typeof METADATA_PLACEMENTS)[number];
@@ -30,6 +37,22 @@ export interface QuickAddCommandPreset {
   insertHeading?: string;
 }
 
+export interface RecentEditedTask {
+  id: string;
+  filePath: string;
+  basename: string;
+  line: number;
+  taskText: string;
+  status: string;
+  completed: boolean;
+  heading?: string;
+  tags: string[];
+  links: string[];
+  dueDate: string | null;
+  priority: PriorityLevel | null;
+  updatedAt: number;
+}
+
 export interface QuickAddTasksSettings {
   inboxPath: string;
   defaultDateType: DateType;
@@ -47,6 +70,8 @@ export interface QuickAddTasksSettings {
   detectedSummaryLayout: DetectedSummaryLayout;
   markdownOutputLocation: MarkdownOutputLocation;
   descriptionFieldLocation: DescriptionFieldLocation;
+  recentEditedTaskCount: number;
+  recentEditedTasks: RecentEditedTask[];
 }
 
 export const DEFAULT_COMMAND_PRESETS: QuickAddCommandPreset[] = [
@@ -72,7 +97,7 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   removeParsedDateText: true,
   createInboxFile: true,
   defaultTags: "",
-  taskTokenOrder: ["priority", "text", "notes", "tags", "recurrence", "dates"],
+  taskTokenOrder: ["text", "priority", "notes", "tags", "recurrence", "dates"],
   insertPosition: "last-line",
   insertTarget: "file",
   insertHeading: "Tasks",
@@ -81,6 +106,8 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   detectedSummaryLayout: "chips",
   markdownOutputLocation: "edit-section",
   descriptionFieldLocation: "entry-area",
+  recentEditedTaskCount: 3,
+  recentEditedTasks: [],
 };
 
 export function isDateType(value: unknown): value is DateType {
@@ -132,6 +159,14 @@ function normalizeCompletionTriggerLength(value: unknown): number {
   return Math.min(10, Math.max(1, length));
 }
 
+function normalizeRecentEditedTaskCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || Number.isNaN(value)) {
+    return DEFAULT_SETTINGS.recentEditedTaskCount;
+  }
+
+  return Math.min(RECENT_EDITED_TASK_LIMIT, Math.max(0, Math.round(value)));
+}
+
 export function normalizeSettings(data: unknown): QuickAddTasksSettings {
   const incoming = data && typeof data === "object" ? data as Partial<QuickAddTasksSettings> : {};
   return {
@@ -148,9 +183,10 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
       ? incoming.createInboxFile
       : DEFAULT_SETTINGS.createInboxFile,
     defaultTags: typeof incoming.defaultTags === "string" ? incoming.defaultTags.trim() : DEFAULT_SETTINGS.defaultTags,
-    taskTokenOrder: normalizeTaskTokenOrder(
+    taskTokenOrder: normalizeStoredTaskTokenOrder(
       (incoming as { taskTokenOrder?: unknown }).taskTokenOrder,
-      getLegacyTaskTokenOrder(incoming.tagPlacement, incoming.priorityPlacement),
+      incoming.tagPlacement,
+      incoming.priorityPlacement,
     ),
     insertPosition: isTaskInsertPosition(incoming.insertPosition)
       ? incoming.insertPosition
@@ -177,6 +213,8 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
       const raw = (incoming as { descriptionFieldLocation?: unknown }).descriptionFieldLocation;
       return isDescriptionFieldLocation(raw) ? raw : DEFAULT_SETTINGS.descriptionFieldLocation;
     })(),
+    recentEditedTaskCount: normalizeRecentEditedTaskCount((incoming as { recentEditedTaskCount?: unknown }).recentEditedTaskCount),
+    recentEditedTasks: normalizeRecentEditedTasks((incoming as { recentEditedTasks?: unknown }).recentEditedTasks),
   };
 }
 
@@ -233,6 +271,28 @@ export function normalizeTaskTokenOrder(
   }
 
   return base;
+}
+
+function normalizeStoredTaskTokenOrder(
+  value: unknown,
+  tagPlacement: MetadataPlacement | undefined,
+  priorityPlacement: MetadataPlacement | undefined,
+): TaskLineToken[] {
+  const hasLegacyPlacement = tagPlacement !== undefined || priorityPlacement !== undefined;
+  const fallback = hasLegacyPlacement
+    ? getLegacyTaskTokenOrder(tagPlacement, priorityPlacement)
+    : DEFAULT_SETTINGS.taskTokenOrder;
+  const order = normalizeTaskTokenOrder(value, fallback);
+
+  if (!hasLegacyPlacement && value !== undefined && taskTokenOrdersEqual(order, PRE_TASKS_COMPAT_PRIORITY_ORDER)) {
+    return [...DEFAULT_SETTINGS.taskTokenOrder];
+  }
+
+  return order;
+}
+
+function taskTokenOrdersEqual(a: readonly TaskLineToken[], b: readonly TaskLineToken[]): boolean {
+  return a.length === b.length && a.every((token, index) => token === b[index]);
 }
 
 export function formatTaskTokenOrder(tokens: readonly TaskLineToken[]): string {
@@ -348,6 +408,67 @@ function normalizeCommandPreset(
 
 function normalizeOptionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function normalizeRecentEditedTasks(value: unknown): RecentEditedTask[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(normalizeRecentEditedTask)
+    .filter((task): task is RecentEditedTask => task !== null)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, RECENT_EDITED_TASK_LIMIT);
+}
+
+function normalizeRecentEditedTask(value: unknown): RecentEditedTask | null {
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+
+  const incoming = value as Partial<RecentEditedTask>;
+  if (
+    typeof incoming.id !== "string"
+    || typeof incoming.filePath !== "string"
+    || typeof incoming.basename !== "string"
+    || typeof incoming.taskText !== "string"
+    || typeof incoming.status !== "string"
+    || typeof incoming.completed !== "boolean"
+    || typeof incoming.updatedAt !== "number"
+    || !Number.isFinite(incoming.updatedAt)
+    || typeof incoming.line !== "number"
+    || !Number.isFinite(incoming.line)
+  ) {
+    return null;
+  }
+
+  const priority = isPriorityLevel(incoming.priority) ? incoming.priority : null;
+  return {
+    id: incoming.id,
+    filePath: incoming.filePath,
+    basename: incoming.basename,
+    line: Math.max(0, Math.round(incoming.line)),
+    taskText: incoming.taskText,
+    status: incoming.status,
+    completed: incoming.completed,
+    heading: typeof incoming.heading === "string" && incoming.heading.length > 0 ? incoming.heading : undefined,
+    tags: normalizeStringArray(incoming.tags),
+    links: normalizeStringArray(incoming.links),
+    dueDate: typeof incoming.dueDate === "string" ? incoming.dueDate : null,
+    priority,
+    updatedAt: incoming.updatedAt,
+  };
+}
+
+function isPriorityLevel(value: unknown): value is PriorityLevel {
+  return typeof value === "string" && PRIORITY_LEVELS.includes(value as PriorityLevel);
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+    : [];
 }
 
 function uniquePresetId(value: string, index: number, usedIds: Set<string>): string {

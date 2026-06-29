@@ -1,25 +1,35 @@
-import { TFile, type App, type CachedMetadata, type ListItemCache } from "obsidian";
+import type { App, CachedMetadata, ListItemCache, TFile } from "obsidian";
 import {
   extractTaskSearchResults,
   filterTaskResults,
   searchTaskResults,
+  type SearchTaskResultsOptions,
   type TaskSearchHeading,
   type TaskSearchFilters,
   type TaskSearchListItem,
   type TaskSearchResult,
 } from "./taskSearchCore.ts";
 
+export interface TaskSearchIndexOptions {
+  onTaskEdited?: (task: TaskSearchResult) => void;
+  refreshDebounceMs?: number;
+}
+
+const DEFAULT_REFRESH_DEBOUNCE_MS = 150;
+
 export class TaskSearchIndex {
+  private readonly app: App;
+  private readonly options: TaskSearchIndexOptions;
   private readonly resultsByPath = new Map<string, TaskSearchResult[]>();
   private readonly pendingRefreshes = new Map<string, TFile>();
   private buildPromise: Promise<void> | null = null;
   private refreshTimer: number | null = null;
   private built = false;
 
-  constructor(
-    private readonly app: App,
-    private readonly refreshDebounceMs = 150,
-  ) {}
+  constructor(app: App, options: TaskSearchIndexOptions = {}) {
+    this.app = app;
+    this.options = options;
+  }
 
   get count(): number {
     return this.getAllResults().length;
@@ -46,8 +56,12 @@ export class TaskSearchIndex {
     return filterTaskResults(this.getAllResults(), filters).length;
   }
 
-  search(query: string, filters?: TaskSearchFilters): TaskSearchResult[] {
-    return searchTaskResults(this.getAllResults(), query, { filters });
+  search(
+    query: string,
+    filters?: TaskSearchFilters,
+    options: Omit<SearchTaskResultsOptions, "filters"> = {},
+  ): TaskSearchResult[] {
+    return searchTaskResults(this.getAllResults(), query, { ...options, filters });
   }
 
   async refreshFile(file: TFile): Promise<void> {
@@ -56,8 +70,10 @@ export class TaskSearchIndex {
       return;
     }
 
+    const previousResults = this.resultsByPath.get(file.path) ?? [];
     const results = await this.readFileTasks(file);
     this.resultsByPath.set(file.path, results);
+    this.reportEditedTasks(previousResults, results);
   }
 
   queueRefresh(file: TFile): void {
@@ -74,7 +90,7 @@ export class TaskSearchIndex {
     this.refreshTimer = window.setTimeout(() => {
       this.refreshTimer = null;
       void this.flushRefreshes();
-    }, this.refreshDebounceMs);
+    }, this.options.refreshDebounceMs ?? DEFAULT_REFRESH_DEBOUNCE_MS);
   }
 
   removeFile(path: string): void {
@@ -121,6 +137,39 @@ export class TaskSearchIndex {
   private getAllResults(): TaskSearchResult[] {
     return Array.from(this.resultsByPath.values()).flat();
   }
+
+  private reportEditedTasks(previousResults: TaskSearchResult[], nextResults: TaskSearchResult[]): void {
+    if (previousResults.length === 0 || this.options.onTaskEdited === undefined) {
+      return;
+    }
+
+    const previousById = new Map(previousResults.map((task) => [task.id, task]));
+    const previousFingerprints = new Set(previousResults.map(taskEditFingerprint));
+    const nextFingerprints = new Set(nextResults.map(taskEditFingerprint));
+
+    for (const nextTask of nextResults) {
+      const previousTask = previousById.get(nextTask.id);
+      if (previousTask === undefined) {
+        continue;
+      }
+
+      const previousFingerprint = taskEditFingerprint(previousTask);
+      const nextFingerprint = taskEditFingerprint(nextTask);
+      if (
+        previousFingerprint === nextFingerprint
+        || previousFingerprints.has(nextFingerprint)
+        || nextFingerprints.has(previousFingerprint)
+      ) {
+        continue;
+      }
+
+      this.options.onTaskEdited(nextTask);
+    }
+  }
+}
+
+function taskEditFingerprint(task: TaskSearchResult): string {
+  return `${task.status}\u0000${task.taskText}`;
 }
 
 function getTaskListItems(cache: CachedMetadata | null): TaskSearchListItem[] | undefined {

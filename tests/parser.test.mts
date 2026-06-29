@@ -20,7 +20,7 @@ test("parses tomorrow, prio highest, and preserves tags", () => {
   assert.equal(parsed.priority?.level, "highest");
   assert.equal(parsed.priority?.marker, "🔺");
   assert.deepEqual(parsed.tags, ["#PhD"]);
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] 🔺 Review manuscript #PhD 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Review manuscript 🔺 #PhD 📅 2026-06-16");
 });
 
 test("supports scheduled dates", () => {
@@ -29,7 +29,7 @@ test("supports scheduled dates", () => {
     defaultDateType: "scheduled",
   });
 
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] ⏫ Draft outline ⏳ 2026-06-15");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Draft outline ⏫ ⏳ 2026-06-15");
 });
 
 test("supports start dates", () => {
@@ -38,7 +38,7 @@ test("supports start dates", () => {
     defaultDateType: "start",
   });
 
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] 🔼 Start grant 🛫 2026-06-26");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Start grant 🔼 🛫 2026-06-26");
 });
 
 test("supports relative week dates", () => {
@@ -71,7 +71,7 @@ test("can keep parsed date text in title", () => {
     removeParsedDateText: false,
   });
 
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] 🔺 Review manuscript tomorrow 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] Review manuscript tomorrow 🔺 📅 2026-06-16");
 });
 
 test("does not parse p4 as a priority marker", () => {
@@ -89,14 +89,14 @@ test("supports exclamation mark priority aliases", () => {
   });
   assert.equal(high.priority?.level, "high");
   assert.equal(high.priority?.matchedText, "!");
-  assert.equal(formatTasksMarkdown(high), "- [ ] ⏫ Review draft 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(high), "- [ ] Review draft ⏫ 📅 2026-06-16");
 
   const highest = parseTaskInput("!! Review draft tomorrow", {
     referenceDate,
   });
   assert.equal(highest.priority?.level, "highest");
   assert.equal(highest.priority?.matchedText, "!!");
-  assert.equal(formatTasksMarkdown(highest), "- [ ] 🔺 Review draft 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(highest), "- [ ] Review draft 🔺 📅 2026-06-16");
 
   const prefixed = parseTaskInput("Review draft prio !!", {
     referenceDate,
@@ -116,8 +116,8 @@ test("formats manual low and lowest priorities", () => {
     referenceDate,
   });
 
-  assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("low") }), "- [ ] 🔽 Review manuscript 📅 2026-06-16");
-  assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("lowest") }), "- [ ] ⏬ Review manuscript 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("low") }), "- [ ] Review manuscript 🔽 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("lowest") }), "- [ ] Review manuscript ⏬ 📅 2026-06-16");
 });
 
 test("formats multiple task dates", () => {
@@ -134,7 +134,7 @@ test("formats multiple task dates", () => {
         start: "2026-06-15",
       },
     }),
-    "- [ ] ⏫ Review manuscript 📅 2026-06-20 ⏳ 2026-06-16 🛫 2026-06-15",
+    "- [ ] Review manuscript ⏫ 📅 2026-06-20 ⏳ 2026-06-16 🛫 2026-06-15",
   );
 });
 

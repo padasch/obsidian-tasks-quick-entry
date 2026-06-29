@@ -5,23 +5,30 @@ import { getCommandPresetDateOptions } from "./presets/commandPresetDates.ts";
 import { TaskSearchIndex } from "./search/TaskSearchIndex.ts";
 import {
   DEFAULT_SETTINGS,
+  RECENT_EDITED_TASK_LIMIT,
   normalizeSettings,
   type QuickAddCommandPreset,
   type QuickAddTasksSettings,
+  type RecentEditedTask,
 } from "./settings.ts";
 import { QuickAddModal } from "./ui/QuickAddModal.ts";
 import { TasksQuickAddSettingTab } from "./ui/SettingsTab.ts";
+import { TaskBatchEditModal } from "./ui/TaskBatchEditModal.ts";
 import { TaskSearchModal } from "./ui/TaskSearchModal.ts";
 import { appendTaskToInbox, type TaskWriteTarget } from "./writer/taskWriter.ts";
+import type { TaskSearchResult } from "./search/taskSearchCore.ts";
 
 export default class TasksQuickAddPlugin extends Plugin {
   settings: QuickAddTasksSettings = DEFAULT_SETTINGS;
   private presetCommandIds = new Set<string>();
   private taskSearchIndex!: TaskSearchIndex;
+  private recentTaskSaveTimer: number | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    this.taskSearchIndex = new TaskSearchIndex(this.app);
+    this.taskSearchIndex = new TaskSearchIndex(this.app, {
+      onTaskEdited: (task) => this.recordRecentlyEditedTask(task),
+    });
     void this.taskSearchIndex.build();
     this.registerTaskSearchEvents();
 
@@ -35,6 +42,11 @@ export default class TasksQuickAddPlugin extends Plugin {
       name: "Search task",
       callback: () => this.openTaskSearchModal(),
     });
+    this.addCommand({
+      id: "batch-edit-tasks",
+      name: "Batch edit tasks",
+      callback: () => this.openTaskBatchEditModal(),
+    });
 
     this.registerObsidianProtocolHandler("tasks-quick-entry", (params) => {
       void this.handleProtocolRequest(params);
@@ -46,6 +58,14 @@ export default class TasksQuickAddPlugin extends Plugin {
     this.addRibbonIcon("plus-circle", "New task", () => this.openQuickAddModal());
     this.addRibbonIcon("search", "Search task", () => this.openTaskSearchModal());
     this.addSettingTab(new TasksQuickAddSettingTab(this));
+  }
+
+  onunload(): void {
+    if (this.recentTaskSaveTimer !== null) {
+      window.clearTimeout(this.recentTaskSaveTimer);
+      this.recentTaskSaveTimer = null;
+      void this.saveData(this.settings);
+    }
   }
 
   async loadSettings(): Promise<void> {
@@ -76,7 +96,14 @@ export default class TasksQuickAddPlugin extends Plugin {
   }
 
   openTaskSearchModal(): void {
-    new TaskSearchModal(this.app, this.taskSearchIndex).open();
+    new TaskSearchModal(this.app, this.taskSearchIndex, {
+      recentEditedTaskCount: this.settings.recentEditedTaskCount,
+      recentEditedTasks: this.settings.recentEditedTasks,
+    }).open();
+  }
+
+  openTaskBatchEditModal(): void {
+    new TaskBatchEditModal(this.app, this.taskSearchIndex).open();
   }
 
   async addTaskFromInput(input: string, preset: QuickAddCommandPreset | null = null): Promise<void> {
@@ -199,6 +226,38 @@ export default class TasksQuickAddPlugin extends Plugin {
     if (file instanceof TFile) {
       this.taskSearchIndex.queueRefresh(file);
     }
+  }
+
+  private recordRecentlyEditedTask(task: TaskSearchResult): void {
+    const recentTask: RecentEditedTask = {
+      id: task.id,
+      filePath: task.filePath,
+      basename: task.basename,
+      line: task.line,
+      taskText: task.taskText,
+      status: task.status,
+      completed: task.completed,
+      heading: task.heading,
+      tags: task.tags,
+      links: task.links,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      updatedAt: Date.now(),
+    };
+    const existing = this.settings.recentEditedTasks.filter((entry) => entry.id !== recentTask.id);
+    this.settings.recentEditedTasks = [recentTask, ...existing].slice(0, RECENT_EDITED_TASK_LIMIT);
+    this.scheduleRecentTaskSave();
+  }
+
+  private scheduleRecentTaskSave(): void {
+    if (this.recentTaskSaveTimer !== null) {
+      window.clearTimeout(this.recentTaskSaveTimer);
+    }
+
+    this.recentTaskSaveTimer = window.setTimeout(() => {
+      this.recentTaskSaveTimer = null;
+      void this.saveData(this.settings);
+    }, 350);
   }
 }
 

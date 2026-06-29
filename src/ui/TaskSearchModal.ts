@@ -1,13 +1,26 @@
 import { MarkdownView, Modal, Notice, TFile, type App } from "obsidian";
+import { priorityFromLevel } from "../parser/priorityParser.ts";
 import { TaskSearchIndex } from "../search/TaskSearchIndex.ts";
+import type { RecentEditedTask } from "../settings.ts";
 import type {
   TaskCompletionFilter,
   TaskSearchFilters,
   TaskSearchResult,
 } from "../search/taskSearchCore.ts";
 
+export interface TaskSearchModalOptions {
+  recentEditedTaskCount?: number;
+  recentEditedTasks?: RecentEditedTask[];
+}
+
+type TaskSearchOpenTarget = Pick<
+  TaskSearchResult,
+  "filePath" | "line" | "taskText" | "status" | "completed" | "heading" | "tags" | "links" | "dueDate" | "priority"
+>;
+
 export class TaskSearchModal extends Modal {
   private inputEl!: HTMLInputElement;
+  private recentEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private resultsEl!: HTMLElement;
   private results: TaskSearchResult[] = [];
@@ -21,6 +34,7 @@ export class TaskSearchModal extends Modal {
   constructor(
     app: App,
     private readonly index: TaskSearchIndex,
+    private readonly options: TaskSearchModalOptions = {},
   ) {
     super(app);
   }
@@ -49,6 +63,8 @@ export class TaskSearchModal extends Modal {
     this.inputEl.type = "text";
 
     this.renderFilters(contentEl);
+    this.recentEl = contentEl.createDiv({ cls: "tasks-task-search-recent" });
+    this.renderRecentEditedTasks();
     this.statusEl = contentEl.createDiv({ cls: "tasks-task-search-status" });
     this.resultsEl = contentEl.createDiv({ cls: "tasks-task-search-results" });
 
@@ -130,6 +146,50 @@ export class TaskSearchModal extends Modal {
       row.type = "button";
       row.title = result.taskText;
       row.addEventListener("mouseenter", () => this.setSelectedIndex(index));
+      row.addEventListener("click", () => {
+        void this.openResult(result);
+      });
+
+      const resultLine = row.createDiv({ cls: "tasks-task-search-result-line" });
+      resultLine.createEl("span", {
+        cls: `tasks-task-search-result-status${result.completed ? " is-completed" : ""}`,
+        text: formatStatus(result.status),
+      });
+      resultLine.createEl("span", {
+        cls: "tasks-task-search-result-text",
+        text: formatTaskText(result.taskText),
+      });
+      resultLine.createEl("span", {
+        cls: "tasks-task-search-result-separator",
+        text: "|",
+      });
+      resultLine.createEl("span", {
+        cls: "tasks-task-search-result-meta",
+        text: formatMetadata(result),
+      });
+    }
+  }
+
+  private renderRecentEditedTasks(): void {
+    this.recentEl.empty();
+    const recentTasks = this.getRecentEditedTasks();
+    this.recentEl.toggleClass("is-empty", recentTasks.length === 0);
+    if (recentTasks.length === 0) {
+      return;
+    }
+
+    this.recentEl.createDiv({
+      cls: "tasks-task-search-recent-title",
+      text: "Recently edited",
+    });
+
+    const listEl = this.recentEl.createDiv({ cls: "tasks-task-search-recent-results" });
+    for (const result of recentTasks) {
+      const row = listEl.createEl("button", {
+        cls: "tasks-task-search-recent-result",
+      });
+      row.type = "button";
+      row.title = result.taskText;
       row.addEventListener("click", () => {
         void this.openResult(result);
       });
@@ -253,7 +313,7 @@ export class TaskSearchModal extends Modal {
     }
   }
 
-  private async openResult(result: TaskSearchResult): Promise<void> {
+  private async openResult(result: TaskSearchOpenTarget): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(result.filePath);
     if (!(file instanceof TFile)) {
       new Notice(`Task file not found: ${result.filePath}`);
@@ -291,6 +351,11 @@ export class TaskSearchModal extends Modal {
       }
     }, 700);
   }
+
+  private getRecentEditedTasks(): RecentEditedTask[] {
+    const count = Math.max(0, this.options.recentEditedTaskCount ?? 0);
+    return (this.options.recentEditedTasks ?? []).slice(0, count);
+  }
 }
 
 const TASK_TEXT_MAX_LENGTH = 88;
@@ -315,10 +380,12 @@ function formatTaskText(taskText: string): string {
   return `${normalized.slice(0, TASK_TEXT_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
-function formatMetadata(result: TaskSearchResult): string {
+function formatMetadata(result: TaskSearchOpenTarget): string {
   return [
     `${result.filePath}:${result.line + 1}`,
     result.heading,
+    result.dueDate === null ? null : `Due ${result.dueDate}`,
+    result.priority === null ? null : `Priority ${priorityFromLevel(result.priority).label}`,
     result.tags.length > 0 ? result.tags.join(" ") : null,
     result.links.length > 0 ? result.links.map((link) => `[[${link}]]`).join(" ") : null,
   ]

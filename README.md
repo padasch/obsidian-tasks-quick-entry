@@ -23,7 +23,7 @@ Review draft [[Project Note]] tom prio high #writing
 Tasks Quick Entry can write:
 
 ```text
-- [ ] ⏫ Review draft #writing 📅 2026-06-16
+- [ ] Review draft ⏫ #writing 📅 2026-06-16
 ```
 
 If routed to `Project Note`, the `[[Project Note]]` link is removed from the task text.
@@ -31,6 +31,9 @@ If routed to `Project Note`, the `[[Project Note]]` link is removed from the tas
 ## Features
 
 - Open a single-line task entry modal from the command palette or ribbon icon.
+- Search existing tasks and batch edit selected results from command palette modals.
+- Show recently edited tasks in the Search task modal so accidental edits are easy
+  to revisit.
 - Preview the parsed task text, detected metadata, and final Markdown while typing.
 - Parse dates such as `today`, `tomorrow`, `yesterday`, `tonight`, `at noon`,
   `Monday`, `Mon`, `next Friday`, `in 2 weeks`, `2 weeks from now`,
@@ -41,7 +44,7 @@ If routed to `Project Note`, the `[[Project Note]]` link is removed from the tas
   `weekend`.
 - Distinguish `this Friday` from `next Friday`.
 - Parse priority with `prio highest`, `prio high`, `prio medium`, `prio normal`,
-  `prio low`, and `prio lowest`.
+  `prio low`, `prio lowest`, `!`, and `!!`.
 - Parse common recurrence phrases such as `every Monday`, `every weekday`, and
   `every second Monday of the month`.
 - Suggest priorities after `prio`, existing tags after `#`, and existing notes after
@@ -53,7 +56,7 @@ If routed to `Project Note`, the `[[Project Note]]` link is removed from the tas
 - Remove the target note link from the task text when the task is routed into that
   same note.
 - Configure the default task file, insertion location, default date type, default
-  tags, and final task line order.
+  tags, recent edit count, and final task line order.
 - Use collapsed editing controls for priority, recurrence, due date, scheduled date,
   and start date.
 
@@ -108,6 +111,8 @@ Priority mapping:
 
 - `prio highest` -> `🔺`
 - `prio high` -> `⏫`
+- `!!` -> `🔺`
+- `!` -> `⏫`
 - `prio medium` -> `🔼`
 - `prio normal` -> no marker
 - `prio low` -> `🔽`

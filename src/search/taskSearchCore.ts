@@ -1,3 +1,4 @@
+import type { PriorityLevel } from "../parser/priorityParser.ts";
 import { fuzzyMatchScore } from "./fuzzySort.ts";
 
 export interface TaskSearchResult {
@@ -11,6 +12,8 @@ export interface TaskSearchResult {
   heading?: string;
   tags: string[];
   links: string[];
+  dueDate: string | null;
+  priority: PriorityLevel | null;
   hasDueDate: boolean;
 }
 
@@ -34,12 +37,20 @@ export interface ExtractTaskSearchResultsOptions {
 export interface SearchTaskResultsOptions {
   maxResults?: number;
   filters?: TaskSearchFilters;
+  sort?: TaskSearchSort;
 }
 
 export type TaskCompletionFilter = "open" | "completed" | "all";
+export type TaskDueDateFilter = "any" | "with-due" | "without-due";
+export type TaskPriorityFilter = "any" | "none" | PriorityLevel;
+export type TaskSearchSort = "relevance" | "file" | "text" | "due" | "priority" | "tag";
 
 export interface TaskSearchFilters {
   completion?: TaskCompletionFilter;
+  dueDate?: TaskDueDateFilter;
+  priority?: TaskPriorityFilter;
+  tagQuery?: string;
+  fileQuery?: string;
   hasTag?: boolean;
   hasLink?: boolean;
   noDueDate?: boolean;
@@ -48,7 +59,23 @@ export interface TaskSearchFilters {
 const TASK_LINE_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+\[([^\]\r\n])\]\s*(.*)$/;
 const TAG_PATTERN = /(^|\s)#[^ !@#$%^&*(),.?":{}|<>\[\]]+/g;
 const WIKILINK_PATTERN = /\[\[([^\]\r\n]+)\]\]/g;
-const DUE_DATE_PATTERN = /(?:📅|due(?: date)?[:：])\s*\d{4}-\d{2}-\d{2}/i;
+const DUE_DATE_PATTERN = /(?:📅|due(?: date)?[:：])\s*(\d{4}-\d{2}-\d{2})/i;
+const PRIORITY_MARKER_PATTERN = /(^|\s)(🔺|⏫|🔼|🔽|⏬)(?=$|\s)/;
+const PRIORITY_RANK: Record<PriorityLevel, number> = {
+  highest: 0,
+  high: 1,
+  medium: 2,
+  normal: 3,
+  low: 4,
+  lowest: 5,
+};
+const PRIORITY_MARKERS: Record<string, PriorityLevel> = {
+  "🔺": "highest",
+  "⏫": "high",
+  "🔼": "medium",
+  "🔽": "low",
+  "⏬": "lowest",
+};
 
 export function extractTaskSearchResults(options: ExtractTaskSearchResultsOptions): TaskSearchResult[] {
   const lines = splitLines(options.content);
@@ -69,6 +96,7 @@ export function extractTaskSearchResults(options: ExtractTaskSearchResultsOption
       }
 
       const taskText = taskLine.taskText.trim();
+      const dueDate = extractDueDate(taskText);
       return [{
         id: `${options.filePath}:${item.line}`,
         filePath: options.filePath,
@@ -80,7 +108,9 @@ export function extractTaskSearchResults(options: ExtractTaskSearchResultsOption
         heading: findNearestHeading(headings, item.line),
         tags: extractTags(taskText),
         links: extractLinks(taskText),
-        hasDueDate: DUE_DATE_PATTERN.test(taskText),
+        dueDate,
+        priority: extractPriority(taskText),
+        hasDueDate: dueDate !== null,
       }];
     });
 }
@@ -93,15 +123,22 @@ export function searchTaskResults(
   const maxResults = options.maxResults ?? 50;
   const normalizedQuery = query.trim();
   const filteredTasks = filterTaskResults(tasks, options.filters);
+  const sort = options.sort ?? "relevance";
 
   if (normalizedQuery.length === 0) {
-    return sortDefaultResults(filteredTasks).slice(0, maxResults);
+    return sortTaskResults(filteredTasks, sort).slice(0, maxResults);
   }
 
   return filteredTasks
     .map((task) => ({ task, score: scoreTaskResult(task, normalizedQuery) }))
     .filter((entry): entry is { task: TaskSearchResult; score: number } => entry.score !== null)
     .sort((a, b) => {
+      if (sort !== "relevance") {
+        return compareTaskResults(a.task, b.task, sort)
+          || b.score - a.score
+          || compareTaskResults(a.task, b.task, "file");
+      }
+
       return b.score - a.score
         || Number(a.task.completed) - Number(b.task.completed)
         || a.task.filePath.localeCompare(b.task.filePath)
@@ -113,6 +150,10 @@ export function searchTaskResults(
 
 export function filterTaskResults(tasks: TaskSearchResult[], filters: TaskSearchFilters = {}): TaskSearchResult[] {
   const completion = filters.completion ?? "all";
+  const dueDate = filters.dueDate ?? (filters.noDueDate ? "without-due" : "any");
+  const priority = filters.priority ?? "any";
+  const tagQuery = normalizeFilterQuery(filters.tagQuery);
+  const fileQuery = normalizeFilterQuery(filters.fileQuery);
 
   return tasks.filter((task) => {
     if (completion === "open" && task.completed) {
@@ -127,7 +168,27 @@ export function filterTaskResults(tasks: TaskSearchResult[], filters: TaskSearch
     if (filters.hasLink && task.links.length === 0) {
       return false;
     }
-    if (filters.noDueDate && task.hasDueDate) {
+    if (dueDate === "with-due" && !task.hasDueDate) {
+      return false;
+    }
+    if (dueDate === "without-due" && task.hasDueDate) {
+      return false;
+    }
+    if (priority === "none" && task.priority !== null) {
+      return false;
+    }
+    if (priority !== "any" && priority !== "none" && task.priority !== priority) {
+      return false;
+    }
+    if (tagQuery.length > 0 && !task.tags.some((tag) => tag.toLowerCase().includes(tagQuery))) {
+      return false;
+    }
+    if (
+      fileQuery.length > 0
+      && !task.filePath.toLowerCase().includes(fileQuery)
+      && !task.basename.toLowerCase().includes(fileQuery)
+      && !(task.heading ?? "").toLowerCase().includes(fileQuery)
+    ) {
       return false;
     }
 
@@ -165,14 +226,52 @@ function weightedScore(text: string, query: string, weight: number): number | nu
   return score === null ? null : score * weight;
 }
 
-function sortDefaultResults(tasks: TaskSearchResult[]): TaskSearchResult[] {
+function sortTaskResults(tasks: TaskSearchResult[], sort: TaskSearchSort): TaskSearchResult[] {
   return tasks
     .slice()
-    .sort((a, b) => {
+    .sort((a, b) => compareTaskResults(a, b, sort));
+}
+
+function compareTaskResults(a: TaskSearchResult, b: TaskSearchResult, sort: TaskSearchSort): number {
+  switch (sort) {
+    case "text":
+      return a.taskText.localeCompare(b.taskText)
+        || compareTaskResults(a, b, "file");
+    case "due":
+      return compareNullableText(a.dueDate, b.dueDate)
+        || compareTaskResults(a, b, "priority")
+        || compareTaskResults(a, b, "file");
+    case "priority":
+      return getPriorityRank(a.priority) - getPriorityRank(b.priority)
+        || compareNullableText(a.dueDate, b.dueDate)
+        || compareTaskResults(a, b, "file");
+    case "tag":
+      return compareNullableText(a.tags[0] ?? null, b.tags[0] ?? null)
+        || compareTaskResults(a, b, "file");
+    case "file":
+    case "relevance":
       return Number(a.completed) - Number(b.completed)
         || a.filePath.localeCompare(b.filePath)
         || a.line - b.line;
-    });
+  }
+}
+
+function compareNullableText(a: string | null, b: string | null): number {
+  if (a === null && b === null) {
+    return 0;
+  }
+  if (a === null) {
+    return 1;
+  }
+  if (b === null) {
+    return -1;
+  }
+
+  return a.localeCompare(b);
+}
+
+function getPriorityRank(priority: PriorityLevel | null): number {
+  return priority === null ? 99 : PRIORITY_RANK[priority];
 }
 
 function extractTaskListItems(lines: string[]): TaskSearchListItem[] {
@@ -209,6 +308,19 @@ function extractTags(input: string): string[] {
 function extractLinks(input: string): string[] {
   return Array.from(input.matchAll(WIKILINK_PATTERN), (match) => match[1].trim())
     .filter((link) => link.length > 0);
+}
+
+function extractDueDate(input: string): string | null {
+  return DUE_DATE_PATTERN.exec(input)?.[1] ?? null;
+}
+
+function extractPriority(input: string): PriorityLevel | null {
+  const marker = PRIORITY_MARKER_PATTERN.exec(input)?.[2];
+  return marker === undefined ? null : PRIORITY_MARKERS[marker] ?? null;
+}
+
+function normalizeFilterQuery(query: string | undefined): string {
+  return (query ?? "").trim().toLowerCase();
 }
 
 function splitLines(content: string): string[] {

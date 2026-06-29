@@ -24,9 +24,12 @@ export interface FormatTasksMarkdownOptions {
 }
 
 export function formatTasksMarkdown(parsed: ParsedTaskInput, options: FormatTasksMarkdownOptions = {}): string {
+  const legacyTokenOrder = options.tagPlacement !== undefined || options.priorityPlacement !== undefined
+    ? getLegacyTaskTokenOrder(options.tagPlacement, options.priorityPlacement)
+    : undefined;
   const tokenOrder = normalizeTaskTokenOrder(
     options.taskTokenOrder,
-    getLegacyTaskTokenOrder(options.tagPlacement, options.priorityPlacement),
+    legacyTokenOrder,
   );
   const titleWithoutTags = parsed.titleWithoutTags;
   const text = removeMarkdownLinks(titleWithoutTags);

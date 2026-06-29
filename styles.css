@@ -479,6 +479,29 @@
   min-width: 96px;
 }
 
+.tasks-task-search-recent.is-empty {
+  display: none;
+}
+
+.tasks-task-search-recent {
+  display: grid;
+  gap: 5px;
+  padding: 8px 0;
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tasks-task-search-recent-title {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.tasks-task-search-recent-results {
+  display: grid;
+  gap: 4px;
+}
+
 .tasks-task-search-status {
   min-height: 18px;
   color: var(--text-muted);
@@ -493,7 +516,8 @@
   overflow: auto;
 }
 
-.tasks-task-search-result {
+.tasks-task-search-result,
+.tasks-task-search-recent-result {
   appearance: none;
   display: block;
   width: 100%;
@@ -510,7 +534,8 @@
 }
 
 .tasks-task-search-result:hover,
-.tasks-task-search-result.is-selected {
+.tasks-task-search-result.is-selected,
+.tasks-task-search-recent-result:hover {
   border-color: var(--background-modifier-border);
   background: var(--background-modifier-hover);
 }
@@ -564,6 +589,217 @@
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.modal.tasks-batch-edit-shell {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: min(1120px, calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+}
+
+.tasks-batch-edit-modal {
+  display: grid;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 18px;
+}
+
+.tasks-batch-edit-title {
+  margin: 0 0 2px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  line-height: 1.25;
+}
+
+.tasks-batch-edit-input {
+  width: 100%;
+}
+
+.tasks-batch-edit-filters,
+.tasks-batch-edit-status-row,
+.tasks-batch-edit-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.tasks-batch-edit-status-row {
+  justify-content: space-between;
+}
+
+.tasks-batch-edit-filter,
+.tasks-batch-edit-action-control {
+  display: grid;
+  gap: 4px;
+  min-width: 118px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.tasks-batch-edit-filter input,
+.tasks-batch-edit-filter select,
+.tasks-batch-edit-action-control input,
+.tasks-batch-edit-action-control select {
+  width: 100%;
+}
+
+.tasks-batch-edit-filter input {
+  min-width: 150px;
+}
+
+.tasks-batch-edit-status {
+  min-height: 18px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.tasks-batch-edit-mini-button {
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: var(--font-ui-smaller);
+}
+
+.tasks-batch-edit-results {
+  display: grid;
+  gap: 4px;
+  max-height: min(460px, calc(100vh - 330px));
+  max-height: min(460px, calc(100dvh - 330px));
+  overflow: auto;
+}
+
+.tasks-batch-edit-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+}
+
+.tasks-batch-edit-result:hover,
+.tasks-batch-edit-result.is-selected {
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
+}
+
+.tasks-batch-edit-result > input {
+  margin-top: 3px;
+}
+
+.tasks-batch-edit-result-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tasks-batch-edit-result-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.tasks-batch-edit-result-status {
+  flex: 0 0 38px;
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.tasks-batch-edit-result-status.is-completed {
+  color: var(--text-muted);
+}
+
+.tasks-batch-edit-result-text,
+.tasks-batch-edit-result-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-batch-edit-result-text {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: 1.35;
+}
+
+.tasks-batch-edit-result-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.3;
+}
+
+.tasks-batch-edit-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.tasks-batch-edit-actions {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.tasks-batch-edit-action-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.tasks-batch-edit-date-action {
+  display: grid;
+  grid-template-columns: minmax(74px, 0.8fr) minmax(0, 1.2fr);
+  gap: 6px;
+}
+
+.tasks-batch-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tasks-batch-edit-apply {
+  min-width: 96px;
+}
+
+@media (max-width: 760px) {
+  .tasks-batch-edit-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tasks-batch-edit-results {
+    max-height: min(420px, calc(100dvh - 360px));
+  }
+}
+
+@media (max-width: 520px) {
+  .tasks-batch-edit-filter,
+  .tasks-batch-edit-action-control {
+    min-width: 100%;
+  }
+
+  .tasks-batch-edit-action-grid,
+  .tasks-batch-edit-date-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tasks-batch-edit-result-text,
+  .tasks-batch-edit-result-meta {
+    white-space: normal;
+  }
 }
 
 .tasks-quick-add-settings-group {
