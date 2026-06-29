@@ -12,6 +12,7 @@ export interface BatchTaskChanges {
   dueDate?: string | null;
   addTags?: string[];
   removeTags?: string[];
+  boldHighestPriorityTaskText?: boolean;
 }
 
 export interface BatchTaskLineTarget {
@@ -28,6 +29,7 @@ const TASK_LINE_CAPTURE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([^\]\r\n])(\]\s*)(.*)$/;
 const PRIORITY_MARKER_PATTERN = /(^|\s)(?:🔺|⏫|🔼|🔽|⏬)(?=$|\s)/g;
 const DUE_DATE_PATTERN = /\s*(?:📅|due(?: date)?[:：])\s*\d{4}-\d{2}-\d{2}/i;
 const TRAILING_METADATA_PATTERN = /(?:^|\s)(🔁|⏳|🛫|📅|due(?: date)?[:：])(?=$|\s)/i;
+const TASK_TEXT_BOUNDARY_PATTERN = /(?:^|\s)(#[^ !@#$%^&*(),.?":{}|<>\[\]]+|🔺|⏫|🔼|🔽|⏬|🔁|⏳|🛫|📅|due(?: date)?[:：])(?=$|\s)/i;
 
 export function applyBatchTaskLineEdits(
   content: string,
@@ -80,6 +82,9 @@ export function applyTaskLineChanges(lineText: string, changes: BatchTaskChanges
 
   if (changes.priority !== undefined) {
     body = stripPriorityMarkers(body);
+    if (changes.boldHighestPriorityTaskText === true) {
+      body = setTaskTextBold(body, changes.priority === "highest");
+    }
     if (changes.priority !== "none") {
       const priority = priorityFromLevel(changes.priority);
       if (priority.marker.length > 0) {
@@ -126,6 +131,32 @@ function hasTag(input: string, tag: string): boolean {
   return pattern.test(input);
 }
 
+function setTaskTextBold(input: string, bold: boolean): string {
+  const body = normalizeBody(input);
+  const splitIndex = findTaskTextBoundary(body) ?? body.length;
+  const taskText = body.slice(0, splitIndex).trimEnd();
+  if (taskText.length === 0) {
+    return body;
+  }
+
+  const metadata = body.slice(splitIndex).trimStart();
+  const nextTaskText = bold ? addBoldMarkdown(taskText) : removeBoldMarkdown(taskText);
+  return normalizeBody(`${nextTaskText} ${metadata}`);
+}
+
+function addBoldMarkdown(input: string): string {
+  return isFullyBold(input) ? input : `**${input}**`;
+}
+
+function removeBoldMarkdown(input: string): string {
+  const match = /^\*\*(\S[\s\S]*\S|\S)\*\*$/.exec(input);
+  return match === null ? input : match[1].trim();
+}
+
+function isFullyBold(input: string): boolean {
+  return /^\*\*(\S[\s\S]*\S|\S)\*\*$/.test(input);
+}
+
 function appendBodyToken(input: string, token: string, position: "metadata-start" | "end"): string {
   const body = normalizeBody(input);
   if (body.length === 0) {
@@ -148,6 +179,15 @@ function appendBodyToken(input: string, token: string, position: "metadata-start
 
 function findTrailingMetadataStart(input: string): number | null {
   const match = TRAILING_METADATA_PATTERN.exec(input);
+  if (match === null) {
+    return null;
+  }
+
+  return match.index + (match[0].startsWith(" ") ? 1 : 0);
+}
+
+function findTaskTextBoundary(input: string): number | null {
+  const match = TASK_TEXT_BOUNDARY_PATTERN.exec(input);
   if (match === null) {
     return null;
   }

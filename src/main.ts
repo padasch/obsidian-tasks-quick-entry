@@ -83,6 +83,7 @@ export default class TasksQuickAddPlugin extends Plugin {
       this.getParseOptions(preset),
       {
         taskTokenOrder: this.settings.taskTokenOrder,
+        boldHighestPriorityTaskText: this.settings.boldHighestPriorityTaskText,
       },
       preset?.name ?? "New task",
       this.settings.completionTriggerLength,
@@ -105,6 +106,7 @@ export default class TasksQuickAddPlugin extends Plugin {
   openTaskBatchEditModal(): void {
     new TaskBatchEditModal(this.app, this.taskSearchIndex, {
       staleTaskFileAgeDays: this.settings.staleTaskFileAgeDays,
+      boldHighestPriorityTaskText: this.settings.boldHighestPriorityTaskText,
     }).open();
   }
 
@@ -116,6 +118,7 @@ export default class TasksQuickAddPlugin extends Plugin {
   async addParsedTask(parsed: ParsedTaskInput, target?: TaskWriteTarget | null): Promise<void> {
     const markdownLine = formatTasksMarkdown(parsed, {
       taskTokenOrder: this.settings.taskTokenOrder,
+      boldHighestPriorityTaskText: this.settings.boldHighestPriorityTaskText,
     });
     const inboxPath = await appendTaskToInbox(this.app, this.settings, markdownLine, target);
     new Notice(`Added task to ${inboxPath}`);

@@ -57,7 +57,7 @@ If routed to `Project Note`, the `[[Project Note]]` link is removed from the tas
 - Remove the target note link from the task text when the task is routed into that
   same note.
 - Configure the default task file, insertion location, default date type, default
-  tags, recent edit count, and final task line order.
+  tags, priority-1 bolding, recent edit count, and final task line order.
 - Use collapsed editing controls for priority, recurrence, due date, scheduled date,
   and start date.
 
@@ -118,6 +118,8 @@ Priority mapping:
 - `prio normal` -> no marker
 - `prio low` -> `🔽`
 - `prio lowest` -> `⏬`
+
+By default, highest-priority task text is wrapped in bold markdown.
 
 Recurrence output:
 

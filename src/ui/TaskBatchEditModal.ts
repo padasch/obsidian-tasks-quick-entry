@@ -27,6 +27,7 @@ type FileAgeFilter = "any" | "stale";
 
 export interface TaskBatchEditModalOptions {
   staleTaskFileAgeDays?: number;
+  boldHighestPriorityTaskText?: boolean;
 }
 
 const BATCH_RESULT_LIMIT = 500;
@@ -448,6 +449,7 @@ export class TaskBatchEditModal extends Modal {
 
     if (priorityAction !== "leave") {
       changes.priority = priorityAction;
+      changes.boldHighestPriorityTaskText = this.options.boldHighestPriorityTaskText ?? true;
     }
 
     if (dueDateAction === "clear") {

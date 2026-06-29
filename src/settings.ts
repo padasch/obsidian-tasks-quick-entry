@@ -70,6 +70,7 @@ export interface QuickAddTasksSettings {
   detectedSummaryLayout: DetectedSummaryLayout;
   markdownOutputLocation: MarkdownOutputLocation;
   descriptionFieldLocation: DescriptionFieldLocation;
+  boldHighestPriorityTaskText: boolean;
   staleTaskFileAgeDays: number;
   recentEditedTaskCount: number;
   recentEditedTasks: RecentEditedTask[];
@@ -107,6 +108,7 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   detectedSummaryLayout: "chips",
   markdownOutputLocation: "edit-section",
   descriptionFieldLocation: "entry-area",
+  boldHighestPriorityTaskText: true,
   staleTaskFileAgeDays: 30,
   recentEditedTaskCount: 3,
   recentEditedTasks: [],
@@ -223,6 +225,9 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
       const raw = (incoming as { descriptionFieldLocation?: unknown }).descriptionFieldLocation;
       return isDescriptionFieldLocation(raw) ? raw : DEFAULT_SETTINGS.descriptionFieldLocation;
     })(),
+    boldHighestPriorityTaskText: typeof incoming.boldHighestPriorityTaskText === "boolean"
+      ? incoming.boldHighestPriorityTaskText
+      : DEFAULT_SETTINGS.boldHighestPriorityTaskText,
     staleTaskFileAgeDays: normalizeStaleTaskFileAgeDays((incoming as { staleTaskFileAgeDays?: unknown }).staleTaskFileAgeDays),
     recentEditedTaskCount: normalizeRecentEditedTaskCount((incoming as { recentEditedTaskCount?: unknown }).recentEditedTaskCount),
     recentEditedTasks: normalizeRecentEditedTasks((incoming as { recentEditedTasks?: unknown }).recentEditedTasks),

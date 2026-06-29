@@ -20,7 +20,7 @@ test("parses tomorrow, prio highest, and preserves tags", () => {
   assert.equal(parsed.priority?.level, "highest");
   assert.equal(parsed.priority?.marker, "🔺");
   assert.deepEqual(parsed.tags, ["#PhD"]);
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] Review manuscript 🔺 #PhD 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] **Review manuscript** 🔺 #PhD 📅 2026-06-16");
 });
 
 test("supports scheduled dates", () => {
@@ -71,7 +71,7 @@ test("can keep parsed date text in title", () => {
     removeParsedDateText: false,
   });
 
-  assert.equal(formatTasksMarkdown(parsed), "- [ ] Review manuscript tomorrow 🔺 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(parsed), "- [ ] **Review manuscript tomorrow** 🔺 📅 2026-06-16");
 });
 
 test("does not parse p4 as a priority marker", () => {
@@ -96,7 +96,7 @@ test("supports exclamation mark priority aliases", () => {
   });
   assert.equal(highest.priority?.level, "highest");
   assert.equal(highest.priority?.matchedText, "!!");
-  assert.equal(formatTasksMarkdown(highest), "- [ ] Review draft 🔺 📅 2026-06-16");
+  assert.equal(formatTasksMarkdown(highest), "- [ ] **Review draft** 🔺 📅 2026-06-16");
 
   const prefixed = parseTaskInput("Review draft prio !!", {
     referenceDate,
@@ -118,6 +118,17 @@ test("formats manual low and lowest priorities", () => {
 
   assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("low") }), "- [ ] Review manuscript 🔽 📅 2026-06-16");
   assert.equal(formatTasksMarkdown({ ...parsed, priority: priorityFromLevel("lowest") }), "- [ ] Review manuscript ⏬ 📅 2026-06-16");
+});
+
+test("can disable bold task text for highest priority", () => {
+  const parsed = parseTaskInput("Review manuscript tomorrow prio highest", {
+    referenceDate,
+  });
+
+  assert.equal(
+    formatTasksMarkdown(parsed, { boldHighestPriorityTaskText: false }),
+    "- [ ] Review manuscript 🔺 📅 2026-06-16",
+  );
 });
 
 test("formats multiple task dates", () => {

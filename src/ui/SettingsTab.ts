@@ -266,6 +266,16 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(parsingEl)
+      .setName("Bold priority 1 task text")
+      .setDesc("Wrap task text in bold markdown when the task has highest priority.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.boldHighestPriorityTaskText)
+        .onChange(async (value) => {
+          this.plugin.settings.boldHighestPriorityTaskText = value;
+          await this.plugin.saveSettings();
+        }));
+
     const searchEl = this.createSettingsGroup(containerEl, "Search");
 
     new Setting(searchEl)

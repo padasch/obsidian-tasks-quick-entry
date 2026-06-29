@@ -52,6 +52,26 @@ test("edits selected task lines and skips stale targets", () => {
   ].join("\n"));
 });
 
+test("bolds task text when batch setting priority to highest", () => {
+  assert.equal(
+    applyTaskLineChanges("- [ ] First task #batch", {
+      priority: "highest",
+      boldHighestPriorityTaskText: true,
+    }),
+    "- [ ] **First task** #batch 🔺",
+  );
+});
+
+test("removes full-title bold when batch priority is lowered", () => {
+  assert.equal(
+    applyTaskLineChanges("- [ ] **First task** #batch 🔺", {
+      priority: "none",
+      boldHighestPriorityTaskText: true,
+    }),
+    "- [ ] First task #batch",
+  );
+});
+
 test("keeps windows line endings when applying batch edits", () => {
   const result = applyBatchTaskLineEdits("- [ ] First\r\n- [ ] Second", [
     { line: 1 },

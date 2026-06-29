@@ -12,6 +12,7 @@ test("normalizes default command presets", () => {
   assert.equal(settings.commandPresets[0]?.dateMode, "today");
   assert.equal(settings.commandPresets[1]?.defaultTags, "#task/shopping");
   assert.deepEqual(settings.taskTokenOrder, ["text", "priority", "notes", "tags", "recurrence", "dates"]);
+  assert.equal(settings.boldHighestPriorityTaskText, true);
   assert.equal(settings.staleTaskFileAgeDays, 30);
   assert.equal(settings.recentEditedTaskCount, 3);
   assert.deepEqual(settings.recentEditedTasks, []);
@@ -92,6 +93,7 @@ test("normalizes command preset task targets", () => {
 
 test("normalizes recently edited task settings", () => {
   const settings = normalizeSettings({
+    boldHighestPriorityTaskText: false,
     staleTaskFileAgeDays: 0,
     recentEditedTaskCount: 50,
     recentEditedTasks: [
@@ -116,6 +118,7 @@ test("normalizes recently edited task settings", () => {
     ],
   });
 
+  assert.equal(settings.boldHighestPriorityTaskText, false);
   assert.equal(settings.staleTaskFileAgeDays, 1);
   assert.equal(settings.recentEditedTaskCount, RECENT_EDITED_TASK_LIMIT);
   assert.equal(settings.recentEditedTasks.length, 1);

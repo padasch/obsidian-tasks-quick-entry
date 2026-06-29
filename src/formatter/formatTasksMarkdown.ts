@@ -21,6 +21,7 @@ export interface FormatTasksMarkdownOptions {
   taskTokenOrder?: TaskLineToken[];
   tagPlacement?: MetadataPlacement;
   priorityPlacement?: MetadataPlacement;
+  boldHighestPriorityTaskText?: boolean;
 }
 
 export function formatTasksMarkdown(parsed: ParsedTaskInput, options: FormatTasksMarkdownOptions = {}): string {
@@ -32,7 +33,7 @@ export function formatTasksMarkdown(parsed: ParsedTaskInput, options: FormatTask
     legacyTokenOrder,
   );
   const titleWithoutTags = parsed.titleWithoutTags;
-  const text = removeMarkdownLinks(titleWithoutTags);
+  const text = formatTaskText(removeMarkdownLinks(titleWithoutTags), parsed.priority?.level === "highest", options);
   const notes = extractMarkdownLinks(titleWithoutTags);
   const parts: string[] = [];
 
@@ -80,6 +81,23 @@ function normalizeDescription(description: string | undefined): string {
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatTaskText(input: string, highestPriority: boolean, options: FormatTasksMarkdownOptions): string {
+  const text = input.trim();
+  if (text.length === 0 || !highestPriority || (options.boldHighestPriorityTaskText ?? true) === false) {
+    return text;
+  }
+
+  return addBoldMarkdown(text);
+}
+
+function addBoldMarkdown(input: string): string {
+  return isFullyBold(input) ? input : `**${input}**`;
+}
+
+function isFullyBold(input: string): boolean {
+  return /^\*\*\S[\s\S]*\S\*\*$/.test(input) || /^\*\*\S\*\*$/.test(input);
 }
 
 function formatDates(dates: Partial<Record<DateType, string>>): string[] {
