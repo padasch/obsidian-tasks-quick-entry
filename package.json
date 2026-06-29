@@ -1,6 +1,6 @@
 {
   "name": "tasks-quick-entry",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Fast task capture for Obsidian Tasks.",
   "main": "main.js",
   "scripts": {

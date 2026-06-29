@@ -32,6 +32,7 @@ If routed to `Project Note`, the `[[Project Note]]` link is removed from the tas
 
 - Open a single-line task entry modal from the command palette or ribbon icon.
 - Search existing tasks and batch edit selected results from command palette modals.
+- Filter batch editing by stale source files, with a configurable age threshold.
 - Show recently edited tasks in the Search task modal so accidental edits are easy
   to revisit.
 - Preview the parsed task text, detected metadata, and final Markdown while typing.

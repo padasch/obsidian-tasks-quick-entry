@@ -125,6 +125,7 @@ export class TaskSearchIndex {
       return extractTaskSearchResults({
         filePath: file.path,
         content,
+        fileModifiedTime: file.stat.mtime,
         listItems: getTaskListItems(cache),
         headings: getHeadings(cache),
       });

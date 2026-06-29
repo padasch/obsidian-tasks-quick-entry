@@ -14,6 +14,7 @@ export interface TaskSearchResult {
   links: string[];
   dueDate: string | null;
   priority: PriorityLevel | null;
+  fileModifiedTime: number;
   hasDueDate: boolean;
 }
 
@@ -30,6 +31,7 @@ export interface TaskSearchHeading {
 export interface ExtractTaskSearchResultsOptions {
   filePath: string;
   content: string;
+  fileModifiedTime?: number;
   listItems?: TaskSearchListItem[];
   headings?: TaskSearchHeading[];
 }
@@ -51,6 +53,7 @@ export interface TaskSearchFilters {
   priority?: TaskPriorityFilter;
   tagQuery?: string;
   fileQuery?: string;
+  fileModifiedBefore?: number;
   hasTag?: boolean;
   hasLink?: boolean;
   noDueDate?: boolean;
@@ -110,6 +113,7 @@ export function extractTaskSearchResults(options: ExtractTaskSearchResultsOption
         links: extractLinks(taskText),
         dueDate,
         priority: extractPriority(taskText),
+        fileModifiedTime: options.fileModifiedTime ?? 0,
         hasDueDate: dueDate !== null,
       }];
     });
@@ -188,6 +192,12 @@ export function filterTaskResults(tasks: TaskSearchResult[], filters: TaskSearch
       && !task.filePath.toLowerCase().includes(fileQuery)
       && !task.basename.toLowerCase().includes(fileQuery)
       && !(task.heading ?? "").toLowerCase().includes(fileQuery)
+    ) {
+      return false;
+    }
+    if (
+      filters.fileModifiedBefore !== undefined
+      && (task.fileModifiedTime <= 0 || task.fileModifiedTime > filters.fileModifiedBefore)
     ) {
       return false;
     }

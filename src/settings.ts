@@ -70,6 +70,7 @@ export interface QuickAddTasksSettings {
   detectedSummaryLayout: DetectedSummaryLayout;
   markdownOutputLocation: MarkdownOutputLocation;
   descriptionFieldLocation: DescriptionFieldLocation;
+  staleTaskFileAgeDays: number;
   recentEditedTaskCount: number;
   recentEditedTasks: RecentEditedTask[];
 }
@@ -106,6 +107,7 @@ export const DEFAULT_SETTINGS: QuickAddTasksSettings = {
   detectedSummaryLayout: "chips",
   markdownOutputLocation: "edit-section",
   descriptionFieldLocation: "entry-area",
+  staleTaskFileAgeDays: 30,
   recentEditedTaskCount: 3,
   recentEditedTasks: [],
 };
@@ -167,6 +169,14 @@ function normalizeRecentEditedTaskCount(value: unknown): number {
   return Math.min(RECENT_EDITED_TASK_LIMIT, Math.max(0, Math.round(value)));
 }
 
+function normalizeStaleTaskFileAgeDays(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || Number.isNaN(value)) {
+    return DEFAULT_SETTINGS.staleTaskFileAgeDays;
+  }
+
+  return Math.min(3650, Math.max(1, Math.round(value)));
+}
+
 export function normalizeSettings(data: unknown): QuickAddTasksSettings {
   const incoming = data && typeof data === "object" ? data as Partial<QuickAddTasksSettings> : {};
   return {
@@ -213,6 +223,7 @@ export function normalizeSettings(data: unknown): QuickAddTasksSettings {
       const raw = (incoming as { descriptionFieldLocation?: unknown }).descriptionFieldLocation;
       return isDescriptionFieldLocation(raw) ? raw : DEFAULT_SETTINGS.descriptionFieldLocation;
     })(),
+    staleTaskFileAgeDays: normalizeStaleTaskFileAgeDays((incoming as { staleTaskFileAgeDays?: unknown }).staleTaskFileAgeDays),
     recentEditedTaskCount: normalizeRecentEditedTaskCount((incoming as { recentEditedTaskCount?: unknown }).recentEditedTaskCount),
     recentEditedTasks: normalizeRecentEditedTasks((incoming as { recentEditedTasks?: unknown }).recentEditedTasks),
   };

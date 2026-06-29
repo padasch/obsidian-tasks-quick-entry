@@ -230,6 +230,25 @@ test("sorts task results by due date, priority, tag, and text", () => {
   );
 });
 
+test("filters tasks by source file modified time", () => {
+  const oldTasks = extractTaskSearchResults({
+    filePath: "Projects/Old.md",
+    fileModifiedTime: 10,
+    content: "- [ ] Old file task",
+  });
+  const recentTasks = extractTaskSearchResults({
+    filePath: "Projects/Recent.md",
+    fileModifiedTime: 50,
+    content: "- [ ] Recent file task",
+  });
+
+  assert.deepEqual(
+    searchTaskResults(oldTasks.concat(recentTasks), "", { filters: { fileModifiedBefore: 30 } })
+      .map((task) => task.taskText),
+    ["Old file task"],
+  );
+});
+
 test("task search index reports edited existing tasks", async () => {
   const fixture = createTaskSearchIndexFixture("- [ ] Review draft 📅 2026-06-16");
   const editedTasks: TaskSearchResult[] = [];
@@ -286,6 +305,9 @@ function createTaskSearchIndexFixture(initialContent: string): {
     file: {
       path: "Tasks.md",
       extension: "md",
+      stat: {
+        mtime: 123,
+      },
     } as TFile,
     setContent: (nextContent: string) => {
       content = nextContent;

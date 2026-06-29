@@ -23,8 +23,14 @@ import {
 type StatusAction = "leave" | BatchTaskStatusChange;
 type PriorityAction = "leave" | BatchPriorityChange;
 type DueDateAction = "leave" | "set" | "clear";
+type FileAgeFilter = "any" | "stale";
+
+export interface TaskBatchEditModalOptions {
+  staleTaskFileAgeDays?: number;
+}
 
 const BATCH_RESULT_LIMIT = 500;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const SETTABLE_PRIORITY_LEVELS = PRIORITY_LEVELS.filter((level) => level !== "normal");
 
 export class TaskBatchEditModal extends Modal {
@@ -44,6 +50,7 @@ export class TaskBatchEditModal extends Modal {
   private completionFilter: TaskCompletionFilter = "open";
   private dueDateFilter: TaskDueDateFilter = "any";
   private priorityFilter: TaskPriorityFilter = "any";
+  private fileAgeFilter: FileAgeFilter = "any";
   private sort: TaskSearchSort = "file";
   private results: TaskSearchResult[] = [];
   private readonly selectedTasks = new Map<string, TaskSearchResult>();
@@ -52,6 +59,7 @@ export class TaskBatchEditModal extends Modal {
   constructor(
     app: App,
     private readonly index: TaskSearchIndex,
+    private readonly options: TaskBatchEditModalOptions = {},
   ) {
     super(app);
   }
@@ -163,6 +171,20 @@ export class TaskBatchEditModal extends Modal {
 
     this.fileInputEl = this.createFilterInput(filtersEl, "File", "File or heading...");
     this.fileInputEl.addEventListener("input", () => this.updateResults());
+
+    const fileAgeSelectEl = this.createFilterSelect(
+      filtersEl,
+      "File age",
+      [
+        ["any", "Any age"],
+        ["stale", `Stale > ${this.getStaleTaskFileAgeDays()}d`],
+      ],
+      this.fileAgeFilter,
+    );
+    fileAgeSelectEl.addEventListener("change", () => {
+      this.fileAgeFilter = fileAgeSelectEl.value as FileAgeFilter;
+      this.updateResults();
+    });
 
     const sortSelectEl = this.createFilterSelect(
       filtersEl,
@@ -461,7 +483,17 @@ export class TaskBatchEditModal extends Modal {
       priority: this.priorityFilter,
       tagQuery: this.tagInputEl.value,
       fileQuery: this.fileInputEl.value,
+      fileModifiedBefore: this.fileAgeFilter === "stale" ? this.getStaleFileCutoff() : undefined,
     };
+  }
+
+  private getStaleTaskFileAgeDays(): number {
+    const days = this.options.staleTaskFileAgeDays ?? 30;
+    return Math.min(3650, Math.max(1, Math.round(days)));
+  }
+
+  private getStaleFileCutoff(): number {
+    return Date.now() - this.getStaleTaskFileAgeDays() * DAY_MS;
   }
 
   private getStatusText(filteredCount: number, visibleSelectedCount: number): string {
@@ -561,12 +593,22 @@ function formatMetadata(result: TaskSearchResult): string {
   return [
     `${result.filePath}:${result.line + 1}`,
     result.heading,
+    formatFileModifiedAge(result.fileModifiedTime),
     result.dueDate === null ? null : `Due ${result.dueDate}`,
     result.priority === null ? null : `Priority ${priorityFromLevel(result.priority).label}`,
     result.tags.length > 0 ? result.tags.join(" ") : null,
   ]
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(" | ");
+}
+
+function formatFileModifiedAge(fileModifiedTime: number): string | null {
+  if (fileModifiedTime <= 0) {
+    return null;
+  }
+
+  const ageDays = Math.max(0, Math.floor((Date.now() - fileModifiedTime) / DAY_MS));
+  return ageDays === 0 ? "Modified today" : `Modified ${ageDays}d ago`;
 }
 
 function parseTagInput(input: string): string[] {

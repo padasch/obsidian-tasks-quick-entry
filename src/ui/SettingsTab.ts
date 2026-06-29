@@ -269,6 +269,22 @@ export class TasksQuickAddSettingTab extends PluginSettingTab {
     const searchEl = this.createSettingsGroup(containerEl, "Search");
 
     new Setting(searchEl)
+      .setName("Stale task file age")
+      .setDesc("Files older than this many days are shown by the stale filter in Batch edit tasks.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.staleTaskFileAgeDays))
+        .setValue(String(this.plugin.settings.staleTaskFileAgeDays))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          const clamped = Number.isNaN(parsed)
+            ? DEFAULT_SETTINGS.staleTaskFileAgeDays
+            : Math.min(3650, Math.max(1, parsed));
+          this.plugin.settings.staleTaskFileAgeDays = clamped;
+          text.setValue(String(clamped));
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(searchEl)
       .setName("Recently edited tasks")
       .setDesc("Number of recent edits shown in the Search task modal. Set to 0 to hide them.")
       .addText((text) => text

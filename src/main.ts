@@ -103,7 +103,9 @@ export default class TasksQuickAddPlugin extends Plugin {
   }
 
   openTaskBatchEditModal(): void {
-    new TaskBatchEditModal(this.app, this.taskSearchIndex).open();
+    new TaskBatchEditModal(this.app, this.taskSearchIndex, {
+      staleTaskFileAgeDays: this.settings.staleTaskFileAgeDays,
+    }).open();
   }
 
   async addTaskFromInput(input: string, preset: QuickAddCommandPreset | null = null): Promise<void> {
